@@ -6,7 +6,9 @@
 # ---- 本地配置(严禁提交) ----
 /.env
 /.user.ini
-/.sql_version
+# 注意: .sql_version 必须提交! make_manifest.php 会读它作为 SQL 版本号,
+#       若被忽略,GitHub Action 生成的 manifest 里 sql_version 会变空,
+#       导致站点永远检测不到数据库更新
 
 # ---- 运行时与缓存 ----
 /runtime/
