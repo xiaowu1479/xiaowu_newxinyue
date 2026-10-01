@@ -83,13 +83,15 @@ $version    = trim((string) @file_get_contents($root . 'VERSION'));
 $sqlVersion = trim((string) @file_get_contents($root . '.sql_version'));
 $changelog  = trim((string) @file_get_contents($root . 'CHANGELOG'));
 
+// 注意: 这里刻意不写入时间戳之类每次都变化的字段。
+// 否则 GitHub Action 每次推送都会生成一个多余提交,
+// 也无法用「重新生成后 git status 无变化」来判断清单是否已是最新。
 $manifest = [
-    'version'      => $version,
-    'sql_version'  => $sqlVersion,
-    'changelog'    => $changelog,
-    'file_count'   => count($files),
-    'generated_at' => date('Y-m-d H:i:s'),
-    'files'        => $files,
+    'version'     => $version,
+    'sql_version' => $sqlVersion,
+    'changelog'   => $changelog,
+    'file_count'  => count($files),
+    'files'       => $files,
 ];
 
 $json = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

@@ -3,7 +3,6 @@
     "sql_version": "20261001",
     "changelog": "## 20261001\r\n\r\n- 新增：更新源支持连接自己的 GitHub 仓库（后台「系统更新」可切换 主服务器 / GitHub 仓库）\r\n- 新增：Banner 管理（首页轮播图），后台菜单新增「Banner管理」\r\n- 新增：接口配置支持认证（认证开关 / 用户名 / 密码）\r\n- 新增：配置项「简约模板默认模式」「首页公告图片」「首页公告内容」「顶部导航显示项」\r\n- 修复：补充缺失的数据表 qf_banner、qf_install_server、qf_sync_log、qf_sync_server\r\n- 修复：qf_conf 增加 conf_key 唯一索引，避免配置项重复\r\n- 修复：qf_source.is_time 字段注释更正为「0永久 1临时 2外部资源」",
     "file_count": 964,
-    "generated_at": "2026-10-01 18:05:49",
     "files": {
         "app/AppService.php": "fd58f5054624c17ad844e9d4e683dddf",
         "app/ExceptionHandle.php": "68c898f23d5a89bb746f40ddf2af5bde",
