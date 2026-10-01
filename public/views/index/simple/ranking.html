@@ -1,0 +1,389 @@
+{include file="simple/common/header"}
+<meta name="referrer" content="never">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/index.css">
+</head>
+
+<body>
+    <div class="headBg" style="background-image: url({$config.home_bg});display:none;"></div>
+    <div id="app" v-cloak>
+        {include file="simple/common/navbar"}
+
+        <div class="home-container">
+            <!-- 移动端搜索框 -->
+            <div class="mobile-search-box">
+                <span class="nav-search-icon">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                </span>
+                <input type="text" v-model="keyword" placeholder="搜索：片名 / 关键词 / 主演" @keyup.enter="searchBtn">
+                <button class="search-btn" @click="searchBtn">搜索</button>
+            </div>
+
+            <!-- 排行榜标签栏 -->
+            <div class="ranking-tabs-toolbar">
+                <div class="category-tabs-bar">
+                    <span class="category-tab" :class="{active: currentRankType === 'Hot'}" @click="switchRankType('Hot')">热播榜</span>
+                    <span class="category-tab" :class="{active: currentRankType === 'New'}" @click="switchRankType('New')">新片榜</span>
+                    <span class="category-tab" :class="{active: currentRankType === 'Top'}" @click="switchRankType('Top')">好评榜</span>
+                </div>
+                <button class="ranking-filter-toggle" @click="filterDialogVisible = true" type="button">
+                    <span>筛选</span>
+                </button>
+            </div>
+
+            <el-dialog v-model="filterDialogVisible" width="720px" class="ranking-filter-dialog">
+                <template #header>
+                    <div class="ranking-filter-dialog-head">
+                        <span class="ranking-filter-dialog-kicker">榜单筛选</span>
+                        <strong>选择你想看的片库范围</strong>
+                    </div>
+                </template>
+                <!-- 筛选区域 -->
+                <div class="ranking-filter-section ranking-filter-section-dialog">
+                    <div class="ranking-filter-row">
+                        <span class="ranking-filter-label">分类</span>
+                        <div class="ranking-filter-options">
+                            <span class="ranking-filter-chip" v-for="item in filterOptions.channel" :key="item.value" :class="{active: currentFilters.channel === item.value}" @click="setFilter('channel', item.value)">{{item.label}}</span>
+                        </div>
+                    </div>
+                    <div class="ranking-filter-row">
+                        <span class="ranking-filter-label">地区</span>
+                        <div class="ranking-filter-options">
+                            <span class="ranking-filter-chip" v-for="item in filterOptions.area" :key="item.value" :class="{active: currentFilters.area === item.value}" @click="setFilter('area', item.value)">{{item.label}}</span>
+                        </div>
+                    </div>
+                    <div class="ranking-filter-row">
+                        <span class="ranking-filter-label">年份</span>
+                        <div class="ranking-filter-options">
+                            <span class="ranking-filter-chip" v-for="item in filterOptions.year" :key="item.value" :class="{active: currentFilters.year === item.value}" @click="setFilter('year', item.value)">{{item.label}}</span>
+                        </div>
+                    </div>
+                    <div class="ranking-filter-row" v-if="currentFilters.channel === 'Movie' || currentFilters.channel === 'TV'">
+                        <span class="ranking-filter-label">类型</span>
+                        <div class="ranking-filter-options">
+                            <span class="ranking-filter-chip" v-for="item in filterOptions.cate" :key="item.value" :class="{active: currentFilters.cate === item.value}" @click="setFilter('cate', item.value)">{{item.label}}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="ranking-filter-dialog-footer">
+                    <button class="ranking-filter-close-btn" type="button" @click="filterDialogVisible = false">关闭</button>
+                </div>
+            </el-dialog>
+
+            <!-- 资源卡片列表 -->
+            <div class="hot-category-section">
+                <div class="hot-category-list">
+                    <div class="hot-category-card">
+                        <div class="hot-category-card-head">
+                            <span class="hot-category-card-title">{{rankTypeMap[currentRankType]}}<em>榜单</em></span>
+                            <span class="hot-category-card-count" v-if="rankingData.length">{{rankingData.length}}条</span>
+                        </div>
+                        <div v-if="loading" class="hot-category-empty">加载中...</div>
+                        <el-empty v-else-if="rankingData.length === 0" :image-size="200" description="暂无榜单数据"></el-empty>
+                        <div class="hot-category-grid" v-else>
+                            <div class="hot-category-item" v-for="(item, index) in rankingData" :key="index" @click="goToSearch(item.title)">
+                                <div class="hot-category-cover">
+                                    <span class="hot-category-rank" :class="{'top': item.ranking <= 3}">{{item.ranking}}</span>
+                                    <img :src="item.src" :alt="item.title" loading="lazy" @error="onCoverError">
+                                </div>
+                                <div class="hot-category-name">{{item.title}}</div>
+                                <div class="hot-category-meta">
+                                    <span v-if="item.year">{{item.year}}</span>
+                                    <span v-if="item.area">{{item.area}}</span>
+                                    <span v-if="item.score_avg && item.score_avg !== '0.0'">{{item.score_avg}}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分页 -->
+            <div class="category-pagination" v-if="totalPages > 1">
+                <el-pagination background layout="prev, pager, next" :pager-count="5"
+                    :total="totalItems" :page-size="pageSize" :current-page="currentPage"
+                    @current-change="changePage"></el-pagination>
+            </div>
+        </div>
+
+        {include file="simple/common/foot"}
+    </div>
+
+    <script src="__STATIC__/simple/common/static/js/vue.global.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/index.full.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/axios.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/app-core.js"></script>
+    <script src="__STATIC__/simple/common/static/js/search.js?v=20260814"></script>
+    <script type="text/javascript">
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        const app = createApp({
+            setup() {
+                const currentTheme = ref('dark');
+                const showThemeDropdown = ref(false);
+                const themeSwitcherRef = ref(null);
+                const layerVisible = ref(false);
+                const drawer = ref(false);
+                const qcodeVisible = ref(false);
+                const filterDialogVisible = ref(false);
+
+                const filterOptions = ref({
+                    channel: [
+                        {label: '电影', value: 'Movie'},
+                        {label: '电视剧', value: 'TV'},
+                        {label: '动漫', value: 'Anime'},
+                        {label: '综艺', value: 'Show'},
+                        {label: '短剧', value: 'Short'}
+                    ],
+                    area: [
+                        {label: '全部', value: 'All'},
+                        {label: '大陆', value: 'China'},
+                        {label: '中国香港', value: 'HongKong'},
+                        {label: '中国台湾', value: 'Taiwan'},
+                        {label: '美国', value: 'USA'},
+                        {label: '韩国', value: 'Korea'},
+                        {label: '日本', value: 'Japan'},
+                        {label: '欧洲', value: 'Europe'},
+                        {label: '印度', value: 'India'},
+                        {label: '泰国', value: 'Thailand'},
+                        {label: '丹麦', value: 'Denmark'},
+                        {label: '英国', value: 'UK'},
+                        {label: '其他', value: 'Other'}
+                    ],
+                    cate: [
+                        {label: '全部', value: 'All'},
+                        {label: '喜剧', value: 'Comedy'},
+                        {label: '爱情', value: 'Romance'},
+                        {label: '动作', value: 'Action'},
+                        {label: '科幻', value: 'SciFi'},
+                        {label: '悬疑', value: 'Suspense'},
+                        {label: '剧情', value: 'Drama'},
+                        {label: '犯罪', value: 'Crime'},
+                        {label: '惊悚', value: 'Thriller'},
+                        {label: '冒险', value: 'Adventure'},
+                        {label: '历史', value: 'History'},
+                        {label: '奇幻', value: 'Fantasy'},
+                        {label: '恐怖', value: 'Horror'},
+                        {label: '家庭', value: 'Family'},
+                        {label: '战争', value: 'War'},
+                        {label: '武侠', value: 'MartialArts'},
+                        {label: '灾难', value: 'Disaster'},
+                        {label: '西部', value: 'Western'},
+                        {label: '运动', value: 'Sports'},
+                        {label: '古装', value: 'Costume'}
+                    ],
+                    year: [
+                        {label: '全部', value: 'All'},
+                        {label: '2026', value: '2026'},
+                        {label: '2025', value: '2025'},
+                        {label: '2024', value: '2024'},
+                        {label: '2023', value: '2023'},
+                        {label: '2022', value: '2022'},
+                        {label: '2021', value: '2021'},
+                        {label: '2020', value: '2020'},
+                        {label: '2019', value: '2019'},
+                        {label: '10年代', value: '2010s'},
+                        {label: '00年代', value: '2000s'},
+                        {label: '90年代', value: '1990s'},
+                        {label: '80年代', value: '1980s'},
+                        {label: '70年代', value: '1970s'},
+                        {label: '60年代', value: '1960s'},
+                        {label: '更早', value: 'Earlier'}
+                    ]
+                });
+
+                const currentFilters = ref({
+                    channel: 'Movie',
+                    area: 'All',
+                    cate: 'All',
+                    year: 'All'
+                });
+
+                const currentRankType = ref('Hot');
+
+                const channelMap = {
+                    'Movie': '电影', 'TV': '电视剧', 'Anime': '动漫', 'Show': '综艺', 'Short': '短剧'
+                };
+                const rankTypeMap = {
+                    'Hot': '热播榜', 'New': '新片榜', 'Top': '好评榜'
+                };
+                const areaMap = {
+                    'All': '全部', 'China': '大陆', 'HongKong': '中国香港', 'Taiwan': '中国台湾',
+                    'USA': '美国', 'Korea': '韩国', 'Japan': '日本', 'Europe': '欧洲',
+                    'India': '印度', 'Thailand': '泰国', 'Denmark': '丹麦', 'UK': '英国', 'Other': '其他'
+                };
+                const cateMap = {
+                    'All': '全部', 'Comedy': '喜剧', 'Romance': '爱情', 'Action': '动作',
+                    'SciFi': '科幻', 'Suspense': '悬疑', 'Drama': '剧情', 'Crime': '犯罪',
+                    'Thriller': '惊悚', 'Adventure': '冒险', 'History': '历史', 'Fantasy': '奇幻',
+                    'Horror': '恐怖', 'Family': '家庭', 'War': '战争', 'MartialArts': '武侠',
+                    'Disaster': '灾难', 'Western': '西部', 'Sports': '运动', 'Costume': '古装'
+                };
+                const yearMap = {
+                    'All': '全部', '2010s': '2010年代', '2000s': '2000年代',
+                    '1990s': '90年代', '1980s': '80年代', '1970s': '70年代',
+                    '1960s': '60年代', 'Earlier': '更早'
+                };
+
+                const rankingData = ref([]);
+                const loading = ref(true);
+                const currentPage = ref(1);
+                const pageSize = ref(24);
+                const totalItems = ref(0);
+                const totalPages = computed(() => Math.ceil(totalItems.value / pageSize.value) || 1);
+
+                const initTheme = () => {
+                    let defaultTheme = '{$config.simple_default_theme}' || 'dark';
+                    if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
+                    let savedTheme = localStorage.getItem('app-theme') || defaultTheme;
+                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
+                    currentTheme.value = savedTheme;
+                    document.documentElement.setAttribute('data-theme', savedTheme);
+                };
+
+                const switchTheme = (theme) => {
+                    currentTheme.value = theme;
+                    document.documentElement.setAttribute('data-theme', theme);
+                    localStorage.setItem('app-theme', theme);
+                    showThemeDropdown.value = false;
+                };
+
+                const toggleThemeDropdown = () => { showThemeDropdown.value = !showThemeDropdown.value; };
+                const closeThemeDropdown = (e) => {
+                    if (themeSwitcherRef.value && !themeSwitcherRef.value.contains(e.target)) {
+                        showThemeDropdown.value = false;
+                    }
+                };
+
+                const setFilter = (type, value) => {
+                    currentFilters.value[type] = value;
+                    currentPage.value = 1;
+                    loadRankingData();
+                };
+
+                const switchRankType = (type) => {
+                    currentRankType.value = type;
+                    currentPage.value = 1;
+                    loadRankingData();
+                };
+
+                const changePage = (page) => {
+                    if (page < 1 || page > totalPages.value) return;
+                    currentPage.value = page;
+                    loadRankingData();
+                    window.scrollTo({top: 0, behavior: 'smooth'});
+                };
+
+                const goToSearch = (title) => {
+                    if (!title) return;
+                    // 不再跳转首页，改为在当前页打开搜索弹窗并预填关键字
+                    keyword.value = title;
+                    openSearchDialog();
+                };
+
+                const loadRankingData = async () => {
+                    loading.value = true;
+                    try {
+                        const params = {
+                            channel: channelMap[currentFilters.value.channel] || currentFilters.value.channel,
+                            rank_type: rankTypeMap[currentRankType.value] || currentRankType.value,
+                            area: areaMap[currentFilters.value.area] || currentFilters.value.area,
+                            cate: cateMap[currentFilters.value.cate] || currentFilters.value.cate,
+                            year: yearMap[currentFilters.value.year] || currentFilters.value.year,
+                            page: currentPage.value,
+                            page_size: pageSize.value,
+                            t: Date.now()
+                        };
+                        const res = await axios.get('/api/tool/ranking', { params });
+                        if (res.data && res.data.code === 200 && res.data.data) {
+                            const responseData = res.data.data;
+                            if (Array.isArray(responseData)) {
+                                rankingData.value = responseData;
+                                totalItems.value = responseData.length;
+                            } else if (typeof responseData === 'object' && responseData.data) {
+                                rankingData.value = responseData.data;
+                                totalItems.value = responseData.total || responseData.data.length;
+                            } else {
+                                rankingData.value = [];
+                                totalItems.value = 0;
+                            }
+                        } else {
+                            rankingData.value = [];
+                            totalItems.value = 0;
+                        }
+                    } catch (error) {
+                        rankingData.value = [];
+                        totalItems.value = 0;
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                onMounted(() => {
+                    initTheme();
+                    loadRankingData();
+                    document.addEventListener('click', closeThemeDropdown);
+                });
+
+                // navbar 需要的变量
+                const keyword = ref('');
+                const {
+                    searchBtn, searchDialogVisible, searchDialogStage, searchSelectedPanType,
+                    openSearchDialog, selectPanAndSearch, backToSelectPanType, onDialogKeywordEnter,
+                    startMultiSearch, selectAllPanTypes, clearPanTypes,
+                    resultFilterPanType, availableResultTabs, setResultFilterPanType,
+                    switchPanFromResource
+                } = window.searchModule.createDialogState(keyword, { validateKeywordOnSearch: false, selectPanAndSearchMode: 'toggle' });
+                const content = ref('');
+                const saveBtn = () => { layerVisible.value = false; };
+                const toggleTheme = () => {
+                    const newTheme = currentTheme.value === 'dark' ? 'light' : 'dark';
+                    currentTheme.value = newTheme;
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('app-theme', newTheme);
+                };
+                const dialogUrl = ref(false);
+                const dialogLoading = ref(false);
+                const dialogItem = ref({});
+                const downloadWithThunder = () => {};
+                const is_m = ref(0);
+                const pc_type = ref(0);
+                const panTypeMap = ref({});
+                const copyToClipboard = (text) => { if (navigator.clipboard) navigator.clipboard.writeText(text); };
+                const defaultCover = ref('data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#1a2538" width="100" height="100"/><text x="50" y="55" font-size="14" fill="#5a6a80" text-anchor="middle">暂无图片</text></svg>'));
+                const onCoverError = (e) => { e.target.src = defaultCover.value; };
+
+                if (window.searchModule) {
+                    window.searchModule.setupResourceDialog({
+                        dialogUrl, dialogLoading, dialogItem
+                    });
+                }
+
+                return {
+                    currentTheme, keyword, searchBtn, content, saveBtn, toggleTheme,
+                    dialogUrl, dialogLoading, dialogItem,
+                    switchPanFromResource, downloadWithThunder,
+                    is_m, pc_type, panTypeMap, copyToClipboard,
+                    defaultCover, onCoverError,
+                    showThemeDropdown, themeSwitcherRef, layerVisible, drawer, qcodeVisible,
+                    filterDialogVisible,
+                    filterOptions, currentFilters, currentRankType,
+                    rankingData, loading, currentPage, totalPages, totalItems, pageSize,
+                    rankTypeMap, switchTheme, toggleThemeDropdown,
+                    setFilter, switchRankType, changePage, goToSearch,
+                    searchDialogVisible, searchDialogStage, searchSelectedPanType,
+                    openSearchDialog, selectPanAndSearch, backToSelectPanType, onDialogKeywordEnter,
+                    startMultiSearch, selectAllPanTypes, clearPanTypes,
+                    resultFilterPanType, availableResultTabs, setResultFilterPanType
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        app.mount('#app');
+        document.documentElement.removeAttribute('data-page-loading');
+    </script>
+</body>
+</html>

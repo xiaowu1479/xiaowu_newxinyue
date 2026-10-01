@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{$node.node_title}</title>
+    <link rel="stylesheet" href="/static/admin/css/sync-server.css?v={:filemtime(public_path().'static/admin/css/sync-server.css')}">
+    {include file="common/header"/}
+
+    <!-- header 操作按钮 -->
+    <div class="header-actions">
+        <div class="sync-key-box">
+            <span class="sync-key-label">资源同步密钥</span>
+            <el-input size="small" v-model="syncKey" placeholder="留空=禁止他站拉取本站资源"
+                show-password clearable style="width:280px;" maxlength="64" show-word-limit></el-input>
+            <el-button size="small" type="success" plain icon="el-icon-refresh" @click="generateSyncKey">生成</el-button>
+            <el-button size="small" type="primary" icon="el-icon-check" @click="saveSyncKey" :loading="syncKeySaving">保存</el-button>
+            <el-tooltip content="此密钥用于本站作为源站时校验他站拉取请求；填入对方服务器配置中的「同步密钥」字段" placement="bottom">
+                <i class="el-icon-info sync-key-tip"></i>
+            </el-tooltip>
+        </div>
+        <div class="header-btns">
+            <el-button icon="el-icon-plus" size="small" @click="clickAdd" type="primary">添加服务器</el-button>
+            <el-button icon="el-icon-document" size="small" @click="clickLogs" plain>同步日志</el-button>
+        </div>
+    </div>
+
+    <!-- 服务器列表 -->
+    <div class="sync-panel">
+        <el-table :data="dataList" v-loading="loading" stripe>
+            <el-table-column prop="sync_server_id" label="ID" width="60" align="center">
+            </el-table-column>
+            <el-table-column prop="name" label="服务器名称" min-width="140">
+            </el-table-column>
+            <el-table-column prop="domain" label="域名" min-width="220">
+                <template slot-scope="scope">
+                    <el-link type="primary" :href="scope.row.domain" target="_blank" :underline="false">
+                        {{ scope.row.domain }}
+                    </el-link>
+                </template>
+            </el-table-column>
+            <el-table-column prop="api_key" label="密钥" min-width="160">
+                <template slot-scope="scope">
+                    <span class="key-text">{{ scope.row.api_key }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="状态" width="80" align="center">
+                <template slot-scope="scope">
+                    <el-tag size="mini" :type="scope.row.status == 1 ? 'success' : 'info'">
+                        {{ scope.row.status == 1 ? '启用' : '禁用' }}
+                    </el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="上次同步" width="170" align="center">
+                <template slot-scope="scope">
+                    <span v-if="scope.row.last_sync_time > 0">{{ formatTime(scope.row.last_sync_time) }}</span>
+                    <span v-else style="color:#c0c4cc;">从未同步</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="累计同步" width="90" align="center">
+                <template slot-scope="scope">
+                    <span class="sync-count">{{ scope.row.total_synced }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="280" align="center" fixed="right">
+                <template slot-scope="scope">
+                    <el-button type="primary" size="mini" icon="el-icon-refresh" @click="clickSync(scope.row)"
+                        :loading="scope.row._syncing" :disabled="scope.row.status != 1">同步</el-button>
+                    <el-button size="mini" icon="el-icon-edit" @click="clickEdit(scope.row)" plain>编辑</el-button>
+                    <el-dropdown trigger="click" @command="handleCommand($event, scope.row)" style="margin-left:4px;">
+                        <el-button size="mini" plain>更多<i class="el-icon-arrow-down el-icon--right"></i></el-button>
+                        <el-dropdown-menu slot="dropdown">
+                            <el-dropdown-item command="test">测试连接</el-dropdown-item>
+                            <el-dropdown-item command="reset">重置增量时间</el-dropdown-item>
+                            <el-dropdown-item command="status">{{ scope.row.status == 1 ? '禁用' : '启用' }}</el-dropdown-item>
+                            <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                        </el-dropdown-menu>
+                    </el-dropdown>
+                </template>
+            </el-table-column>
+        </el-table>
+    </div>
+
+    <!-- 添加/编辑弹窗 -->
+    <el-dialog :title="dialogTitle" :visible.sync="dialogForm" width="620px" :modal-append-to-body='false'
+        append-to-body :close-on-click-modal='false'>
+        <el-form :model="formData" :rules="rules" ref="formData" label-width="110px">
+            <el-form-item prop="name" label="服务器名称">
+                <el-input size="medium" v-model="formData.name" placeholder="如：站长A的资源站"></el-input>
+            </el-form-item>
+            <el-form-item prop="domain" label="源站域名">
+                <el-input size="medium" v-model="formData.domain" placeholder="https://www.example.com（结尾不带斜杠）"></el-input>
+            </el-form-item>
+            <el-form-item prop="api_key" label="同步密钥">
+                <el-input size="medium" v-model="formData.api_key" placeholder="源站后台配置的 sync_key" show-password>
+                    <el-button slot="append" @click="clickTest">测试连接</el-button>
+                </el-input>
+            </el-form-item>
+            <el-form-item label="默认分类">
+                <el-select size="medium" v-model="formData.default_category_id" placeholder="请选择" clearable style="width:100%;">
+                    <el-option label="不指定分类" :value="0"></el-option>
+                    <el-option v-for="item in categoryList" :key="item.source_category_id"
+                        :label="item.name" :value="item.source_category_id">
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="同步网盘类型">
+                <el-select size="medium" v-model="formData.sync_is_type_arr" placeholder="全部类型" multiple style="width:100%;">
+                    <el-option label="夸克" value="0"></el-option>
+                    <el-option label="阿里" value="1"></el-option>
+                    <el-option label="百度" value="2"></el-option>
+                    <el-option label="UC" value="3"></el-option>
+                    <el-option label="迅雷" value="4"></el-option>
+                    <el-option label="123" value="5"></el-option>
+                    <el-option label="115" value="6"></el-option>
+                    <el-option label="天翼" value="7"></el-option>
+                    <el-option label="移动" value="8"></el-option>
+                    <el-option label="磁力" value="9"></el-option>
+                </el-select>
+                <div class="form-tip">留空=同步全部网盘类型</div>
+            </el-form-item>
+            <el-form-item label="分类映射">
+                <el-input size="medium" type="textarea" :rows="3" v-model="formData.category_map"
+                    placeholder='JSON格式，如 {"1":"3","2":"5"}，源站分类ID->本地分类ID'></el-input>
+                <div class="form-tip">可选，将源站分类ID映射到本地分类ID；未配置则按名称匹配或使用默认分类</div>
+            </el-form-item>
+            <el-form-item label="定时同步">
+                <el-switch v-model="formData.auto_sync" :active-value="1" :inactive-value="0" active-text="开启" inactive-text="关闭">
+                </el-switch>
+                <el-select v-if="formData.auto_sync" size="mini" v-model="formData.sync_hour" style="width:120px;margin-left:12px;">
+                    <el-option v-for="h in 24" :key="h-1" :label="(h-1) + '点'" :value="h-1"></el-option>
+                </el-select>
+                <div class="form-tip" v-if="formData.auto_sync">每天 {{ formData.sync_hour }} 点自动同步，在宝塔面板添加计划任务（访问URL）：<code>{{ '/api/sync/autoSync?api_key=***' }}</code></div>
+            </el-form-item>
+            <el-form-item label="状态">
+                <el-switch v-model="formData.status" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="禁用">
+                </el-switch>
+            </el-form-item>
+            <el-form-item label="备注">
+                <el-input size="medium" type="textarea" :rows="2" v-model="formData.remark" placeholder="可选"></el-input>
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="dialogForm = false">取消</el-button>
+            <el-button type="primary" @click="postSave">保存</el-button>
+        </div>
+    </el-dialog>
+
+    <!-- 同步进度弹窗 -->
+    <el-dialog title="同步进度" :visible.sync="syncDialog" width="420px" :modal-append-to-body='false'
+        append-to-body :close-on-click-modal='false' :show-close="false" :close-on-press-escape='false'>
+        <div class="sync-progress">
+            <div v-if="syncing" class="sync-loading">
+                <i class="el-icon-loading"></i>
+                <p>正在从 <strong>{{ syncServerName }}</strong> 同步资源...</p>
+                <p class="sync-tip">请勿关闭页面，同步可能需要几分钟</p>
+            </div>
+            <div v-else class="sync-result">
+                <div class="sync-result-icon">
+                    <i :class="syncResult.failed > 0 && syncResult.new_added + syncResult.updated > 0 ? 'el-icon-warning' : (syncResult.failed > 0 ? 'el-icon-error' : 'el-icon-success')"
+                        :style="{ color: syncResult.failed > 0 && syncResult.new_added + syncResult.updated > 0 ? '#e6a23c' : (syncResult.failed > 0 ? '#f56c6c' : '#67c23a') }"></i>
+                </div>
+                <p class="sync-result-title">{{ syncResult.failed > 0 && syncResult.new_added + syncResult.updated > 0 ? '部分同步成功' : (syncResult.failed > 0 ? '同步失败' : '同步成功') }}</p>
+                <div class="sync-stats">
+                    <div class="sync-stat-item"><span class="stat-num">{{ syncResult.total }}</span><span class="stat-label">总拉取</span></div>
+                    <div class="sync-stat-item success"><span class="stat-num">{{ syncResult.new_added }}</span><span class="stat-label">新增</span></div>
+                    <div class="sync-stat-item primary"><span class="stat-num">{{ syncResult.updated }}</span><span class="stat-label">更新</span></div>
+                    <div class="sync-stat-item warning"><span class="stat-num">{{ syncResult.skipped }}</span><span class="stat-label">跳过</span></div>
+                    <div class="sync-stat-item danger"><span class="stat-num">{{ syncResult.failed }}</span><span class="stat-label">失败</span></div>
+                </div>
+            </div>
+        </div>
+        <div slot="footer" class="dialog-footer" v-if="!syncing">
+            <el-button type="primary" @click="syncDialog = false">关闭</el-button>
+        </div>
+    </el-dialog>
+
+    <!-- 同步日志弹窗 -->
+    <el-dialog title="同步日志" :visible.sync="logDialog" width="900px" :modal-append-to-body='false'
+        append-to-body :close-on-click-modal='true'>
+        <el-table :data="logList" v-loading="logLoading" stripe max-height="500">
+            <el-table-column prop="create_time" label="时间" width="160" align="center">
+                <template slot-scope="scope">
+                    {{ formatTime(scope.row.create_time) }}
+                </template>
+            </el-table-column>
+            <el-table-column prop="server_name" label="服务器" width="140">
+            </el-table-column>
+            <el-table-column label="拉取" width="70" align="center">
+                <template slot-scope="scope">{{ scope.row.total_fetched }}</template>
+            </el-table-column>
+            <el-table-column label="新增" width="70" align="center">
+                <template slot-scope="scope">
+                    <span style="color:#67c23a;font-weight:600;">{{ scope.row.new_added }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="更新" width="70" align="center">
+                <template slot-scope="scope">
+                    <span style="color:#409eff;font-weight:600;">{{ scope.row.updated }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="跳过" width="70" align="center">
+                <template slot-scope="scope">
+                    <span style="color:#e6a23c;">{{ scope.row.skipped }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="失败" width="70" align="center">
+                <template slot-scope="scope">
+                    <span style="color:#f56c6c;font-weight:600;">{{ scope.row.failed }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="状态" width="90" align="center">
+                <template slot-scope="scope">
+                    <el-tag size="mini" :type="scope.row.status == 1 ? 'success' : (scope.row.status == 2 ? 'warning' : 'danger')">
+                        {{ scope.row.status == 1 ? '成功' : (scope.row.status == 2 ? '部分' : '失败') }}
+                    </el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column prop="fail_reason" label="失败原因" min-width="180">
+                <template slot-scope="scope">
+                    <span style="color:#909399;font-size:12px;">{{ scope.row.fail_reason || '-' }}</span>
+                </template>
+            </el-table-column>
+        </el-table>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="logDialog = false">关闭</el-button>
+        </div>
+    </el-dialog>
+
+    {include file="common/footer"/}
+    <script src="/static/admin/js/sync-server.js?v={:filemtime(public_path().'static/admin/js/sync-server.js')}"></script>
+</html>

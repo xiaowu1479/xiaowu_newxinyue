@@ -1,0 +1,87 @@
+<!-- 分类管理弹窗 -->
+<el-dialog title="分类管理" :visible.sync="dialogCategory" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="1100px" custom-class="dialog-category">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div style="font-size: 14px; color: #606266;">共 {{ catDataList.length }} 个分类</div>
+        <el-button icon="el-icon-plus" size="small" @click="catClickAdd" type="primary" style="border-radius: 8px;">添加分类</el-button>
+    </div>
+    <el-table :data="catDataList" v-loading="catLoading" style="max-height: 50vh; overflow-y: auto;" stripe>
+        <el-table-column prop="source_category_id" label="ID" width="60"></el-table-column>
+        <el-table-column label="分类名称">
+            <template slot-scope="scope">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <img v-if="scope.row.image" :src="scope.row.image" style="width: 32px; height: 32px; border-radius: 4px; object-fit: cover;" />
+                    <div v-else style="width: 32px; height: 32px; border-radius: 4px; background: #f5f7fa; display: flex; align-items: center; justify-content: center;">
+                        <i class="el-icon-picture" style="color: #c0c4cc; font-size: 14px;"></i>
+                    </div>
+                    <span>{{ scope.row.name }}</span>
+                </div>
+            </template>
+        </el-table-column>
+        <el-table-column label="展示本地" width="120" align="center">
+            <template slot-scope="scope">
+                <el-switch v-model="scope.row.is_type==1?true:false" @change="catClickStatus(scope.row.source_category_id,'is_type',scope.row.is_type)"></el-switch>
+            </template>
+        </el-table-column>
+        <el-table-column label="每日更新" width="120" align="center">
+            <template slot-scope="scope">
+                <el-switch v-model="scope.row.is_update==1?true:false" @change="catClickStatus(scope.row.source_category_id,'is_update',scope.row.is_update)"></el-switch>
+            </template>
+        </el-table-column>
+        <el-table-column label="首页展示" width="120" align="center">
+            <template slot-scope="scope">
+                <el-switch v-model="scope.row.status==1?false:true" @change="catClickStatus(scope.row.source_category_id,'status',scope.row.status)"></el-switch>
+            </template>
+        </el-table-column>
+        <el-table-column prop="sort" label="排序" width="80" align="center"></el-table-column>
+        <el-table-column label="操作" width="150" align="center">
+            <template slot-scope="scope">
+                <el-button type="text" size="small" icon="el-icon-edit" @click="catClickEdit(scope.row)">编辑</el-button>
+                <el-button type="text" size="small" icon="el-icon-delete" style="color: #f56c6c;" @click="catClickDelete(scope.row)">删除</el-button>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div slot="footer" class="dialog-footer">
+        <el-button @click="dialogCategory = false">关 闭</el-button>
+    </div>
+</el-dialog>
+
+<!-- 分类添加框 -->
+<el-dialog title="添加分类" :visible.sync="catDialogAdd" width="520px" :modal-append-to-body='false' append-to-body :close-on-click-modal='false' custom-class="dialog-cat-form">
+    <el-form :model="catFormAdd" :rules="catRules" ref="catFormAdd" label-width="90px">
+        <el-form-item prop="name" label="分类名称">
+            <el-input size="medium" autocomplete="off" placeholder="请输入分类名称" v-model="catFormAdd.name"></el-input>
+        </el-form-item>
+        <el-form-item prop="image" label="分类图标">
+            <Single v-model="catFormAdd.image"></Single>
+        </el-form-item>
+        <el-form-item prop="sort" label="排序">
+            <el-input-number v-model="catFormAdd.sort" :min="0" :max="999" size="medium" style="width: 140px;" controls-position="right" />
+            <span style="margin-left: 8px; font-size: 12px; color: #909399;">数值越小越靠前</span>
+        </el-form-item>
+    </el-form>
+    <div slot="footer" class="dialog-footer">
+        <el-button @click="catDialogAdd = false">取 消</el-button>
+        <el-button type="primary" @click="catPostAdd()">确认添加</el-button>
+    </div>
+</el-dialog>
+
+<!-- 分类修改框 -->
+<el-dialog title="编辑分类" :visible.sync="catDialogEdit" width="520px" :modal-append-to-body='false' append-to-body :close-on-click-modal='false' custom-class="dialog-cat-form">
+    <el-form :model="catFormEdit" :rules="catRules" ref="catFormEdit" label-width="90px">
+        <el-form-item prop="name" label="分类名称">
+            <el-input size="medium" autocomplete="off" v-model="catFormEdit.name"></el-input>
+        </el-form-item>
+        <el-form-item prop="image" label="分类图标">
+            <Single v-model="catFormEdit.image"></Single>
+        </el-form-item>
+        <el-form-item prop="sort" label="排序">
+            <el-input-number v-model="catFormEdit.sort" :min="0" :max="999" size="medium" style="width: 140px;" controls-position="right" />
+            <span style="margin-left: 8px; font-size: 12px; color: #909399;">数值越小越靠前</span>
+        </el-form-item>
+    </el-form>
+    <div slot="footer" class="dialog-footer">
+        <el-button @click="catDialogEdit = false">取 消</el-button>
+        <el-button type="primary" @click="catPostEdit()">确认修改</el-button>
+    </div>
+</el-dialog>

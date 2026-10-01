@@ -1,0 +1,17 @@
+<meta charset="UTF-8">
+<!-- import CSS -->
+<link rel="stylesheet" href="/static/admin/css/element.css?v={:filemtime(public_path().'static/admin/css/element.css')}">
+<link rel="stylesheet" href="/static/admin/css/YAdmin.css?v={:filemtime(public_path().'static/admin/css/YAdmin.css')}">
+</head>
+
+<body>
+    <div id="app" v-cloak>
+        <el-header>
+            <div class="header-title">
+                <div class="header-main-title">{$node.node_title}</div>
+                <div class="header-sub-title">{$node.node_desc}</div>
+            </div>
+        </el-header>
+            <el-container class="body">
+                {include file="common/menu"/}
+                <el-main>

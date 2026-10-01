@@ -1,0 +1,196 @@
+{include file="simple/common/header"}
+<meta name="referrer" content="no-referrer">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/index.css">
+</head>
+
+<body>
+    <div class="headBg" style="background-image: url({$config.home_bg});display:none;"></div>
+    <div id="app" v-cloak>
+        {include file="simple/common/navbar"}
+
+        <div class="home-container">
+            <!-- 移动端搜索框 -->
+            <div class="mobile-search-box">
+                <span class="nav-search-icon">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                </span>
+                <input type="text" v-model="keyword" placeholder="搜索：片名 / 关键词 / 主演" @keyup.enter="searchBtn">
+                <button class="search-btn" @click="searchBtn">搜索</button>
+            </div>
+
+            <!-- 资源卡片列表 -->
+            <div class="hot-category-section">
+                <div class="hot-category-list">
+                    <div class="hot-category-card">
+                        <div class="hot-category-card-head">
+                            <span class="hot-category-card-title">豆瓣Top250<em>榜单</em></span>
+                            <span class="hot-category-card-count" v-if="total > 0">{{total}}部</span>
+                        </div>
+                        <div v-if="loading" class="hot-category-empty">加载中...</div>
+                        <el-empty v-else-if="list.length === 0" :image-size="200" description="暂无榜单数据"></el-empty>
+                        <div class="hot-category-grid" v-else>
+                            <div class="hot-category-item" v-for="(item, index) in list" :key="item.id || index" @click="goToSearch(item.title)">
+                                <div class="hot-category-cover">
+                                    <span class="hot-category-rank" :class="{'top': item.ranking <= 3}">{{item.ranking}}</span>
+                                    <span v-if="item.score" class="hot-category-score-badge">{{item.score}}</span>
+                                    <img :src="item.cover ? '/api/douban/proxy?url=' + encodeURIComponent(item.cover) : defaultCover" :alt="item.title" loading="lazy" @error="onCoverError">
+                                    <div class="hot-category-overlay">
+                                        <span v-if="item.year">{{item.year}}<span v-if="item.area"> · {{item.area}}</span></span>
+                                        <span v-if="item.genre">{{item.genre}}</span>
+                                        <p v-if="item.desc" class="hot-category-desc">{{item.desc}}</p>
+                                    </div>
+                                </div>
+                                <div class="hot-category-name">{{item.title}}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分页 -->
+            <div class="category-pagination" v-if="total > limit">
+                <el-pagination background layout="prev, pager, next" :pager-count="5"
+                    :total="total" :page-size="limit" :current-page="currentPage"
+                    @current-change="changePage"></el-pagination>
+            </div>
+        </div>
+
+        {include file="simple/common/foot"}
+    </div>
+
+    <script src="__STATIC__/simple/common/static/js/vue.global.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/index.full.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/axios.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/app-core.js"></script>
+    <script src="__STATIC__/simple/common/static/js/search.js?v=20260814"></script>
+    <script type="text/javascript">
+        const { createApp, ref, onMounted } = Vue;
+
+        const app = createApp({
+            setup() {
+                const list = ref([]);
+                const loading = ref(true);
+                const total = ref(0);
+                const currentPage = ref(1);
+                const limit = ref(24);
+
+                // 主题
+                const currentTheme = ref('dark');
+                const initTheme = () => {
+                    let defaultTheme = '{$config.simple_default_theme}' || 'dark';
+                    if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
+                    let savedTheme = localStorage.getItem('app-theme') || defaultTheme;
+                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
+                    currentTheme.value = savedTheme;
+                    document.documentElement.setAttribute('data-theme', savedTheme);
+                };
+                const toggleTheme = () => {
+                    const newTheme = currentTheme.value === 'dark' ? 'light' : 'dark';
+                    currentTheme.value = newTheme;
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('app-theme', newTheme);
+                };
+
+                // navbar 变量
+                const keyword = ref('');
+                const {
+                    searchBtn, searchDialogVisible, searchDialogStage, searchSelectedPanType,
+                    openSearchDialog, selectPanAndSearch, backToSelectPanType, onDialogKeywordEnter,
+                    startMultiSearch, selectAllPanTypes, clearPanTypes,
+                    resultFilterPanType, availableResultTabs, setResultFilterPanType,
+                    switchPanFromResource
+                } = window.searchModule.createDialogState(keyword, { validateKeywordOnSearch: false, selectPanAndSearchMode: 'toggle' });
+                const drawer = ref(false);
+                const qcodeVisible = ref(false);
+                const layerVisible = ref(false);
+                const content = ref('');
+                const saveBtn = () => { layerVisible.value = false; };
+
+                // 弹窗变量
+                const dialogUrl = ref(false);
+                const dialogLoading = ref(false);
+                const dialogItem = ref({});
+                const downloadWithThunder = () => {};
+                const is_m = ref(0);
+                const pc_type = ref(0);
+                const panTypeMap = ref({});
+                const copyToClipboard = (text) => { if (navigator.clipboard) navigator.clipboard.writeText(text); };
+
+                // 封面图
+                const defaultCover = ref('data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a2538"/><stop offset="1" stop-color="#0e1620"/></linearGradient></defs><rect fill="url(#bg)" width="200" height="280" rx="8"/><g transform="translate(100,125)" opacity="0.25"><rect x="-28" y="-20" width="56" height="40" rx="4" fill="none" stroke="#8aa5ff" stroke-width="2"/><circle cx="-10" cy="-8" r="5" fill="#8aa5ff"/><path d="M-22,14 L-6,-2 L8,10 L22,-6 L22,14 Z" fill="#8aa5ff"/></g><text x="100" y="185" font-size="13" fill="#5a6a80" text-anchor="middle" font-family="sans-serif">暂无封面</text></svg>'));
+                const onCoverError = (e) => { e.target.src = defaultCover.value; };
+
+                if (window.searchModule) {
+                    window.searchModule.setupResourceDialog({
+                        dialogUrl, dialogLoading, dialogItem
+                    });
+                }
+
+                // 搜索：不跳首页，在当前页打开搜索弹窗并预填关键字
+                const goToSearch = (title) => {
+                    if (!title) return;
+                    keyword.value = title;
+                    openSearchDialog();
+                };
+
+                // 加载数据
+                const loadData = async (page) => {
+                    loading.value = true;
+                    try {
+                        const res = await axios.get('/api/douban/top250', {
+                            params: { page: page, limit: limit.value }
+                        });
+                        if (res.data && res.data.code === 200 && res.data.data) {
+                            list.value = res.data.data.items || [];
+                            total.value = res.data.data.total || 0;
+                        } else {
+                            list.value = [];
+                            total.value = 0;
+                        }
+                    } catch (e) {
+                        list.value = [];
+                        total.value = 0;
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 切换页码
+                const changePage = (page) => {
+                    currentPage.value = page;
+                    loadData(page);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
+                onMounted(() => {
+                    initTheme();
+                    loadData(1);
+                });
+
+                return {
+                    list, loading, total, currentPage, limit,
+                    changePage, goToSearch,
+                    currentTheme, toggleTheme,
+                    keyword, searchBtn, drawer, qcodeVisible,
+                    layerVisible, content, saveBtn,
+                    dialogUrl, dialogLoading, dialogItem,
+                    switchPanFromResource, downloadWithThunder,
+                    is_m, pc_type, panTypeMap, copyToClipboard,
+                    defaultCover, onCoverError,
+                    searchDialogVisible, searchDialogStage, searchSelectedPanType,
+                    openSearchDialog, selectPanAndSearch, backToSelectPanType, onDialogKeywordEnter,
+                    startMultiSearch, selectAllPanTypes, clearPanTypes,
+                    resultFilterPanType, availableResultTabs, setResultFilterPanType
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        app.mount('#app');
+        document.documentElement.removeAttribute('data-page-loading');
+    </script>
+</body>
+</html>

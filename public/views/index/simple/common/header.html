@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        (function() {
+            var defaultTheme = '{$config.simple_default_theme}' || 'dark';
+            if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
+            var savedTheme = localStorage.getItem('app-theme') || defaultTheme;
+            if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.documentElement.setAttribute('data-page-loading', '');
+        })();
+        // 资源有效性检测开关（后台「搜索设置 > 检测资源」控制）
+        window.__linkCheckEnabled = '{$config.is_quan_zc}' === '1';
+        if (!window.__linkCheckEnabled) {
+            document.documentElement.classList.add('link-check-disabled');
+        }
+    </script>
+    <style>
+        [v-cloak] {
+            display: none !important;
+        }
+        /* 检测关闭时隐藏"检测中"标识 */
+        .link-check-disabled .link-check-status,
+        .link-check-disabled .link-check-status-vue {
+            display: none !important;
+        }
+        el-dialog,
+        el-input,
+        el-button {
+            display: none !important;
+        }
+        [data-page-loading] #app {
+            visibility: hidden !important;
+        }
+        [data-page-loading] body,
+        [data-page-loading] html {
+            background-color: #0E1620 !important;
+        }
+        [data-theme="dark"] body,
+        [data-theme="dark"] html {
+            background-color: #0E1620 !important;
+        }
+        [data-theme="light"] body,
+        [data-theme="light"] html {
+            background-color: #F5F2EA !important;
+        }
+    </style>
+    {notempty name="config.app_icon"}
+    <link rel="icon" href="{$config.app_icon}" />
+    {/notempty}
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width,user-scalable=no,maximum-scale=1.0">
+    <title>{$seo_title}</title>
+    <meta name="keywords" content="{$seo_keywords}" />
+    <meta name="description" content="{$seo_description}" />
+    <meta name="referrer" content="no-referrer">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/element-plus.css">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/base.css">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/layout.css">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/app.css">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/m.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+    {$config.seo_statistics|raw}
+
+    <style>
+        {$config.home_css}
+    </style>
+</head>

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{$node.node_title}</title>
+    {include file="common/header"/}
+    <el-card class="upgrade-main-card" shadow="never">
+        <section class="upgrade-section">
+            <div class="upgrade-section-header">
+                <span>更新源配置</span>
+                <el-button type="primary" size="mini" :loading="savingConfig" @click="saveConfig">保存配置</el-button>
+            </div>
+            <el-form label-width="120px" style="max-width:650px;">
+                <el-form-item label="更新源类型">
+                    <el-radio-group v-model="configData.upgrade_source">
+                        <el-radio label="github">GitHub 仓库</el-radio>
+                        <el-radio label="server">主服务器</el-radio>
+                    </el-radio-group>
+                </el-form-item>
+
+                <template v-if="configData.upgrade_source === 'github'">
+                    <el-form-item label="GitHub 仓库">
+                        <el-input v-model="configData.upgrade_github_repo" placeholder="用户名/仓库名，如 xiaowu1479/xiaowu_newxinyue"></el-input>
+                    </el-form-item>
+                    <el-form-item label="分支">
+                        <el-input v-model="configData.upgrade_github_branch" placeholder="main"></el-input>
+                    </el-form-item>
+                    <div class="upgrade-tips">
+                        · 仅支持<b>公开仓库</b>，私有仓库无法通过此方式读取<br>
+                        · 仓库根目录需存在 <code>manifest.json</code>（由 <code>tools/make_manifest.php</code> 生成后提交）<br>
+                        · 推送后 GitHub CDN 存在约 5 分钟缓存，稍等片刻再点"检查更新"<br>
+                        · 同步范围仅限 app、config、extend、route、public/static、public/views
+                    </div>
+                </template>
+
+                <template v-else>
+                    <el-form-item label="更新源地址">
+                        <el-input v-model="configData.upgrade_server" placeholder="主服务器地址(不带末尾斜杠)"></el-input>
+                    </el-form-item>
+                    <el-form-item label="升级通信密钥">
+                        <el-input v-model="configData.upgrade_secret" placeholder="主从服务器需保持一致"></el-input>
+                    </el-form-item>
+                    <div class="upgrade-tips">
+                        获取密钥请加QQ群1065624088,点击访问：<a href="https://qm.qq.com/q/dX9jkjMHdY" target="_blank" style="color:#409eff;">https://qm.qq.com/q/dX9jkjMHdY</a>
+                    </div>
+                </template>
+            </el-form>
+        </section>
+
+        <section class="upgrade-section">
+            <div class="upgrade-section-header">
+                <span>版本信息</span>
+            </div>
+            <el-row :gutter="20">
+                <el-col :span="6">
+                    <div class="version-box" @click="handleVersionClick" style="cursor:default;user-select:none;">
+                        <div class="version-label">当前版本</div>
+                        <div class="version-num">v{{diffData.local_version || localVersion}}</div>
+                    </div>
+                </el-col>
+                <el-col :span="6">
+                    <div class="version-box">
+                        <div class="version-label">最新版本</div>
+                        <div class="version-num" v-if="diffData.remote_version">v{{diffData.remote_version}}</div>
+                        <div class="version-num" v-else style="color:#999;">未检查</div>
+                    </div>
+                </el-col>
+                <el-col :span="12" style="text-align:right;padding-top:12px;">
+                    <el-button type="primary" :loading="checking" @click="checkUpdate">
+                        <i class="el-icon-refresh"></i> 检查更新
+                    </el-button>
+                    <el-button type="success" :loading="upgrading" :disabled="!diffData.has_update" @click="applyUpdate">
+                        <i class="el-icon-upload2"></i> 执行更新
+                    </el-button>
+                    <el-button type="warning" :loading="runningSql" @click="manualSqlUpdate">
+                        <i class="el-icon-data-line"></i> 手动更新数据库
+                    </el-button>
+                </el-col>
+            </el-row>
+            <div v-if="diffData.remote_changelog" style="margin-top:15px;padding:10px;background:#f5f7fa;border-radius:4px;">
+                <strong>更新日志:</strong>
+                <pre style="margin:5px 0 0;white-space:pre-wrap;font-family:inherit;">{{diffData.remote_changelog}}</pre>
+            </div>
+        </section>
+
+        <section class="upgrade-section" v-if="diffData.has_update !== undefined">
+            <div class="upgrade-section-header">
+                <span>更新详情</span>
+                <div>
+                    <el-tag v-if="diffData.has_update" type="danger" size="small">有更新</el-tag>
+                    <el-tag v-else type="success" size="small">已是最新</el-tag>
+                </div>
+            </div>
+            <el-row :gutter="20" style="margin-bottom:10px;">
+                <el-col :span="6">需更新/新增: <b style="color:#e6a23c;">{{diffData.update_count}}</b> 个文件</el-col>
+                <el-col :span="6">需删除: <b style="color:#f56c6c;">{{diffData.delete_count}}</b> 个文件</el-col>
+                <el-col :span="6">相同文件: <b style="color:#67c23a;">{{diffData.same_count}}</b> 个文件</el-col>
+                <el-col :span="6">数据库: <el-tag :type="diffData.has_sql_update ? 'warning' : 'success'" size="mini">{{diffData.has_sql_update ? '需更新' : '无更新'}}</el-tag></el-col>
+            </el-row>
+            <el-row :gutter="20" style="margin-bottom:10px;color:#909399;font-size:12px;">
+                <el-col :span="12">本地 SQL 版本：{{diffData.local_sql_version || localSqlVersion}}</el-col>
+                <el-col :span="12">远端 SQL 版本：{{diffData.remote_sql_version || '-'}}</el-col>
+            </el-row>
+            <el-tabs v-model="activeTab">
+                <el-tab-pane :label="'更新/新增 (' + diffData.update_count + ')'" name="update">
+                    <el-table :data="diffData.update_files" border size="small" style="max-height:300px;overflow:auto;" v-if="diffData.update_files && diffData.update_files.length">
+                        <el-table-column type="index" label="#" width="50"></el-table-column>
+                        <el-table-column prop="path" label="文件路径"></el-table-column>
+                        <el-table-column prop="action" label="操作" width="100">
+                            <template slot-scope="scope">
+                                <el-tag :type="scope.row.action === 'add' ? 'success' : 'warning'" size="mini">
+                                    {{scope.row.action === 'add' ? '新增' : '更新'}}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <div v-else style="color:#999;text-align:center;padding:20px;">无更新文件</div>
+                </el-tab-pane>
+                <el-tab-pane :label="'删除 (' + diffData.delete_count + ')'" name="delete">
+                    <el-table :data="diffData.delete_files" border size="small" style="max-height:300px;overflow:auto;" v-if="diffData.delete_files && diffData.delete_files.length">
+                        <el-table-column type="index" label="#" width="50"></el-table-column>
+                        <el-table-column prop="path" label="文件路径"></el-table-column>
+                        <el-table-column prop="action" label="操作" width="100">
+                            <template slot-scope="scope">
+                                <el-tag type="danger" size="mini">删除</el-tag>
+                            </template>
+                        </el-table-column>
+                    </el-table>
+                    <div v-else style="color:#999;text-align:center;padding:20px;">无删除文件</div>
+                </el-tab-pane>
+            </el-tabs>
+        </section>
+
+        <section class="upgrade-section">
+            <div class="upgrade-section-header">
+                <span>备份与回滚</span>
+                <el-button type="warning" size="mini" :loading="backing" @click="doBackup">手动备份</el-button>
+            </div>
+            <el-table :data="backupList" border size="small" v-loading="loadingBackups">
+                <el-table-column type="index" label="#" width="50"></el-table-column>
+                <el-table-column prop="name" label="备份名称"></el-table-column>
+                <el-table-column prop="time" label="备份时间"></el-table-column>
+                <el-table-column label="包含内容">
+                    <template slot-scope="scope">
+                        <el-tag v-if="scope.row.has_files" size="mini" style="margin-right:5px;">文件</el-tag>
+                        <el-tag v-if="scope.row.has_database" size="mini" type="success">数据库</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="180">
+                    <template slot-scope="scope">
+                        <el-button type="danger" size="mini" @click="rollback(scope.row.name)">回滚</el-button>
+                        <el-button type="danger" size="mini" plain @click="deleteBackup(scope.row.name)">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+            <div v-if="!backupList.length && !loadingBackups" style="color:#999;text-align:center;padding:20px;">暂无备份</div>
+        </section>
+
+        <section class="upgrade-section upgrade-section-last">
+            <div class="upgrade-section-header">
+                <span>更新日志</span>
+            </div>
+            <el-table :data="logList" border size="small" v-loading="loadingLogs">
+                <el-table-column type="index" label="#" width="50"></el-table-column>
+                <el-table-column prop="log_type" label="类型" width="100">
+                    <template slot-scope="scope">
+                        <el-tag :type="logTypeColor(scope.row.log_type)" size="mini">{{logTypeText(scope.row.log_type)}}</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="版本" width="160">
+                    <template slot-scope="scope">
+                        {{scope.row.log_from_version || '-'}} → {{scope.row.log_to_version || '-'}}
+                    </template>
+                </el-table-column>
+                <el-table-column prop="log_update_count" label="更新数" width="80"></el-table-column>
+                <el-table-column prop="log_delete_count" label="删除数" width="80"></el-table-column>
+                <el-table-column prop="log_result" label="结果" width="80">
+                    <template slot-scope="scope">
+                        <el-tag :type="scope.row.log_result === '成功' ? 'success' : 'danger'" size="mini">{{scope.row.log_result}}</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="log_admin" label="操作人" width="100"></el-table-column>
+                <el-table-column label="时间" width="160">
+                    <template slot-scope="scope">{{formatTime(scope.row.log_createtime)}}</template>
+                </el-table-column>
+                <el-table-column prop="log_message" label="消息" show-overflow-tooltip></el-table-column>
+            </el-table>
+        </section>
+    </el-card>
+
+    {include file="common/footer"/}
+    <style>
+        .upgrade-main-card{border-radius:14px;overflow:hidden;border:1px solid #eef0f4;}
+        .upgrade-main-card .el-card__body{padding:0;}
+        .upgrade-section{padding:20px 24px;border-bottom:1px solid #eef0f4;}
+        .upgrade-section-last{border-bottom:none;}
+        .upgrade-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;font-size:15px;font-weight:600;color:#1f2937;}
+        .version-box{text-align:center;padding:10px;background:#f5f7fa;border-radius:8px;}
+        .version-label{color:#909399;font-size:13px;margin-bottom:5px;}
+        .version-num{font-size:22px;font-weight:bold;color:#409eff;}
+        .upgrade-tips{color:#909399;font-size:12px;margin-left:120px;line-height:1.9;}
+        .upgrade-tips code{background:#f0f2f5;padding:1px 5px;border-radius:3px;color:#e6a23c;}
+    </style>
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    checking: false,
+                    upgrading: false,
+                    runningSql: false,
+                    backing: false,
+                    savingConfig: false,
+                    loadingBackups: false,
+                    loadingLogs: false,
+                    activeTab: 'update',
+                    diffData: {},
+                    localVersion: '{:trim((string)file_get_contents(root_path() . "VERSION")) ?: "1.0.0"}',
+                    localSqlVersion: '{:trim((string)file_get_contents(root_path() . ".sql_version")) ?: "-"}',
+                    configData: { upgrade_source: 'github', upgrade_server: '', upgrade_secret: '', upgrade_github_repo: '', upgrade_github_branch: 'main' },
+                    backupList: [],
+                    logList: [],
+                    versionClickCount: 0,
+                    versionClickTimer: null
+                };
+            },
+            mounted() {
+                this.loadConfig();
+                this.loadBackups();
+                this.loadLogs();
+            },
+            methods: {
+                // 连续点击版本号5次跳转到服务器管理
+                handleVersionClick() {
+                    this.versionClickCount++;
+                    clearTimeout(this.versionClickTimer);
+                    this.versionClickTimer = setTimeout(() => {
+                        this.versionClickCount = 0;
+                    }, 3000);
+                    if (this.versionClickCount >= 5) {
+                        this.versionClickCount = 0;
+                        window.location.href = '/qfadmin/server/index';
+                    }
+                },
+                // 加载更新源配置
+                loadConfig() {
+                    var that = this;
+                    axios.post('/admin/upgrade/getConfig', Object.assign({}, PostBase))
+                        .then(function (res) {
+                            if (res.data.code == CODE_SUCCESS) {
+                                that.configData = res.data.data;
+                            }
+                        })
+                        .catch(function () {});
+                },
+                // 保存更新源配置
+                saveConfig() {
+                    var that = this;
+                    this.savingConfig = true;
+                    axios.post('/admin/upgrade/saveConfig', Object.assign({
+                        upgrade_source: this.configData.upgrade_source,
+                        upgrade_server: this.configData.upgrade_server,
+                        upgrade_secret: this.configData.upgrade_secret,
+                        upgrade_github_repo: this.configData.upgrade_github_repo,
+                        upgrade_github_branch: this.configData.upgrade_github_branch
+                    }, PostBase))
+                        .then(function (res) {
+                            that.savingConfig = false;
+                            if (res.data.code == CODE_SUCCESS) {
+                                that.$message.success(res.data.message);
+                            } else {
+                                that.$message.error(res.data.message);
+                            }
+                        })
+                        .catch(function () { that.savingConfig = false; });
+                },
+                // 检查更新
+                checkUpdate() {
+                    var that = this;
+                    this.checking = true;
+                    axios.post('/admin/upgrade/check', Object.assign({}, PostBase))
+                        .then(function (res) {
+                            that.checking = false;
+                            if (res.data.code == CODE_SUCCESS) {
+                                that.diffData = res.data.data;
+                                if (that.diffData.has_update) {
+                                    var sqlText = that.diffData.has_sql_update ? '，数据库需更新' : '';
+                                    that.$message.warning('发现 ' + that.diffData.update_count + ' 个文件需更新, ' + that.diffData.delete_count + ' 个文件需删除' + sqlText);
+                                } else {
+                                    that.$message.success('当前已是最新版本');
+                                }
+                            } else {
+                                that.$message.error(res.data.message);
+                            }
+                        })
+                        .catch(function () {
+                            that.checking = false;
+                            that.$message.error('检查更新失败,请检查更新源配置');
+                        });
+                },
+                // 执行更新
+                applyUpdate() {
+                    var that = this;
+                    this.$confirm('即将执行系统更新,更新前会自动备份。更新期间请勿关闭页面,是否继续?', '系统更新', {
+                        confirmButtonText: '确认更新',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(() => {
+                        that.upgrading = true;
+                        that.$message.info('正在更新,请耐心等待...');
+                        axios.post('/admin/upgrade/apply', Object.assign({}, PostBase))
+                            .then(function (res) {
+                                that.upgrading = false;
+                                if (res.data.code == CODE_SUCCESS) {
+                                    that.$message.success(res.data.message);
+                                    that.diffData = {};
+                                    that.loadBackups();
+                                    that.loadLogs();
+                                } else {
+                                    that.$message.error(res.data.message);
+                                    that.loadBackups();
+                                    that.loadLogs();
+                                }
+                            })
+                            .catch(function () {
+                                that.upgrading = false;
+                                that.$message.error('更新请求失败');
+                                that.loadBackups();
+                                that.loadLogs();
+                            });
+                    }).catch(() => {});
+                },
+                // 手动更新数据库（执行本地 upgrade.sql）
+                manualSqlUpdate() {
+                    var that = this;
+                    this.$confirm('将执行本地 upgrade.sql 数据库迁移脚本，执行前建议先手动备份。是否继续?', '手动更新数据库', {
+                        confirmButtonText: '确认执行',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(() => {
+                        that.runningSql = true;
+                        axios.post('/admin/upgrade/manualSql', Object.assign({}, PostBase))
+                            .then(function (res) {
+                                that.runningSql = false;
+                                if (res.data.code == CODE_SUCCESS) {
+                                    that.$message.success(res.data.message + '（' + (res.data.data.sql_result || '') + '）');
+                                    that.loadLogs();
+                                } else {
+                                    that.$message.error(res.data.message);
+                                    that.loadLogs();
+                                }
+                            })
+                            .catch(function () {
+                                that.runningSql = false;
+                                that.$message.error('请求失败');
+                            });
+                    }).catch(() => {});
+                },
+                // 加载备份列表
+                loadBackups() {
+                    var that = this;
+                    this.loadingBackups = true;
+                    axios.post('/admin/upgrade/backups', Object.assign({}, PostBase))
+                        .then(function (res) {
+                            that.loadingBackups = false;
+                            if (res.data.code == CODE_SUCCESS) {
+                                that.backupList = res.data.data;
+                            }
+                        })
+                        .catch(function () { that.loadingBackups = false; });
+                },
+                // 加载日志
+                loadLogs() {
+                    var that = this;
+                    this.loadingLogs = true;
+                    axios.post('/admin/upgrade/logList', Object.assign({}, PostBase))
+                        .then(function (res) {
+                            that.loadingLogs = false;
+                            if (res.data.code == CODE_SUCCESS) {
+                                that.logList = res.data.data;
+                            }
+                        })
+                        .catch(function () { that.loadingLogs = false; });
+                },
+                // 手动备份
+                doBackup() {
+                    var that = this;
+                    this.$confirm('确认创建手动备份?', '手动备份', { type: 'info' }).then(() => {
+                        that.backing = true;
+                        axios.post('/admin/upgrade/doBackup', Object.assign({}, PostBase))
+                            .then(function (res) {
+                                that.backing = false;
+                                if (res.data.code == CODE_SUCCESS) {
+                                    that.$message.success('备份完成');
+                                    that.loadBackups();
+                                } else {
+                                    that.$message.error(res.data.message);
+                                }
+                            })
+                            .catch(function () { that.backing = false; });
+                    }).catch(() => {});
+                },
+                // 回滚
+                rollback(name) {
+                    var that = this;
+                    this.$confirm('回滚将恢复到备份时的状态,当前未保存的数据将丢失,是否继续?', '回滚确认', {
+                        confirmButtonText: '确认回滚',
+                        cancelButtonText: '取消',
+                        type: 'error'
+                    }).then(() => {
+                        axios.post('/admin/upgrade/rollback', Object.assign({ backup_name: name }, PostBase))
+                            .then(function (res) {
+                                if (res.data.code == CODE_SUCCESS) {
+                                    that.$message.success(res.data.message);
+                                    that.diffData = {};
+                                    that.loadBackups();
+                                    that.loadLogs();
+                                } else {
+                                    that.$message.error(res.data.message);
+                                }
+                            })
+                            .catch(function () { that.$message.error('回滚请求失败'); });
+                    }).catch(() => {});
+                },
+                // 删除备份
+                deleteBackup(name) {
+                    var that = this;
+                    this.$confirm('确认删除该备份？删除后无法回滚到此备份。', '删除备份', {
+                        confirmButtonText: '确认删除',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(() => {
+                        axios.post('/admin/upgrade/deleteBackup', Object.assign({ backup_name: name }, PostBase))
+                            .then(function (res) {
+                                if (res.data.code == CODE_SUCCESS) {
+                                    that.$message.success(res.data.message);
+                                    that.loadBackups();
+                                } else {
+                                    that.$message.error(res.data.message);
+                                }
+                            })
+                            .catch(function () { that.$message.error('删除请求失败'); });
+                    }).catch(() => {});
+                },
+                // 格式化时间
+                formatTime(ts) {
+                    if (!ts) return '-';
+                    var d = new Date(ts * 1000);
+                    return d.getFullYear() + '-' + this.pad(d.getMonth() + 1) + '-' + this.pad(d.getDate()) + ' ' +
+                        this.pad(d.getHours()) + ':' + this.pad(d.getMinutes()) + ':' + this.pad(d.getSeconds());
+                },
+                pad(n) { return n < 10 ? '0' + n : n; },
+                logTypeText(t) {
+                    return { upgrade: '升级', upgrade_fail: '升级失败', rollback: '回滚' }[t] || t;
+                },
+                logTypeColor(t) {
+                    return { upgrade: 'success', upgrade_fail: 'danger', rollback: 'warning' }[t] || 'info';
+                }
+            }
+        })
+    </script>
+</html>

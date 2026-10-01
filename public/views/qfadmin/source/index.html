@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{$node.node_title}</title>
+    <link rel="stylesheet" href="/static/admin/css/source-index.css?v={:filemtime(public_path().'static/admin/css/source-index.css')}">
+    {include file="common/header"/}
+    <!-- 引入 Fira Sans 字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        var adminName = '{$adminInfo['admin_account']}';
+        var rankNames = '<?php
+            $rn = config("qfshop.rank_name");
+            echo $rn ? $rn : "热搜榜,推荐榜,好评榜";
+        ?>'.split(',');
+    </script>
+
+    <!-- header 操作按钮 -->
+    <div class="header-actions">
+        <el-button icon="el-icon-plus" size="small" @click="clickAdd" type="primary">添加资源</el-button>
+        <el-button icon="el-icon-document-copy" size="small" @click="getExport" plain>导出表格</el-button>
+        <el-button icon="el-icon-upload2" size="small" @click="ImportShow" plain>导入资源</el-button>
+        <el-button icon="el-icon-files" size="small" @click="openCategory" plain>分类管理</el-button>
+    </div>
+
+    <!-- 资源统计卡片 -->
+    <el-row :gutter="18" class="kpi-row">
+        <el-col :span="6">
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:linear-gradient(135deg,#6366f1,#818cf8);"><i class="el-icon-folder-opened"></i></div>
+                <div>
+                    <div class="kpi-label">资源总数</div>
+                    <div class="kpi-value">{{ sourceStats.total }}</div>
+                </div>
+            </div>
+        </el-col>
+        <el-col :span="6">
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);"><i class="el-icon-circle-plus-outline"></i></div>
+                <div>
+                    <div class="kpi-label">今日新增</div>
+                    <div class="kpi-value">{{ sourceStats.today }}</div>
+                </div>
+            </div>
+        </el-col>
+        <el-col :span="6">
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:linear-gradient(135deg,#10b981,#34d399);"><i class="el-icon-date"></i></div>
+                <div>
+                    <div class="kpi-label">本月新增</div>
+                    <div class="kpi-value">{{ sourceStats.month }}</div>
+                </div>
+            </div>
+        </el-col>
+        <el-col :span="6">
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background:linear-gradient(135deg,#ec4899,#f472b6);"><i class="el-icon-files"></i></div>
+                <div>
+                    <div class="kpi-label">资源分类</div>
+                    <div class="kpi-value">{{ sourceStats.category }}</div>
+                </div>
+            </div>
+        </el-col>
+    </el-row>
+
+    <!-- 操作 + 筛选 + 列表（合并卡片） -->
+    <div class="source-panel">
+    <div class="filter-card">
+        <el-form :inline="true" @submit.native.prevent class="filter-form">
+        <el-form-item style="margin-left: 12px;">
+            <el-input placeholder="输入关键词搜索" size="small" v-model="search.keyword"
+                @keyup.enter.native="getList_search"></el-input>
+        </el-form-item>
+        <el-form-item class="compact-btns">
+            <el-button type="primary" icon="el-icon-search" size="small" @click="getList_search">搜索
+            </el-button>
+            <el-button icon="el-icon-refresh-left" size="small" @click="getList_search(0)" plain>重置</el-button>
+            <el-popover placement="bottom-start" width="320" trigger="click" v-model="filterVisible" popper-class="filter-popover">
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">分类</label>
+                        <el-select size="small" v-model="search.source_category_id" placeholder="筛选分类" style="flex:1;">
+                            <el-option label="全部分类" value=""></el-option>
+                            <el-option v-for="item in category" :key="item.source_category_id" :label="item.name"
+                                :value="item.source_category_id">
+                            </el-option>
+                        </el-select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">网盘</label>
+                        <el-select size="small" v-model="search.is_type" placeholder="网盘类型" style="flex:1;">
+                            <el-option label="全部网盘" value=""></el-option>
+                            <el-option label="夸克" :value="0"></el-option>
+                            <el-option label="阿里" :value="1"></el-option>
+                            <el-option label="百度" :value="2"></el-option>
+                            <el-option label="UC" :value="3"></el-option>
+                            <el-option label="迅雷" :value="4"></el-option>
+                            <el-option label="123" :value="5"></el-option>
+                            <el-option label="115" :value="6"></el-option>
+                            <el-option label="天翼" :value="7"></el-option>
+                            <el-option label="移动" :value="8"></el-option>
+                            <el-option label="磁力" :value="9"></el-option>
+                        </el-select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">类型</label>
+                        <el-select size="small" v-model="search.is_time" placeholder="资源类型" style="flex:1;">
+                            <el-option label="全部资源" value=""></el-option>
+                            <el-option label="永久资源" :value="0"></el-option>
+                            <el-option label="临时资源" :value="1"></el-option>
+                            <el-option label="外部资源" :value="2"></el-option>
+                        </el-select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">标识</label>
+                        <el-select size="small" v-model="search.is_top" placeholder="资源标识" style="flex:1;">
+                            <el-option label="全部标识" value=""></el-option>
+                            <el-option label="普通资源" :value="0"></el-option>
+                            <el-option :label="rankNames[0] || '热搜榜'" :value="1"></el-option>
+                            <el-option :label="rankNames[1] || '推荐榜'" :value="2"></el-option>
+                            <el-option :label="rankNames[2] || '好评榜'" :value="3"></el-option>
+                        </el-select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">排序</label>
+                        <el-select size="small" v-model="form.order" placeholder="请选择" style="flex:1;">
+                            <el-option label="ID排序" value="source_id desc"></el-option>
+                            <el-option label="入库时间" value="create_time desc"></el-option>
+                        </el-select>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+                        <el-button size="small" @click="resetFilter" plain>重置</el-button>
+                        <el-button size="small" type="primary" @click="applyFilter">确认筛选</el-button>
+                    </div>
+                </div>
+                <el-button slot="reference" icon="el-icon-set-up" size="small">筛选</el-button>
+            </el-popover>
+            <el-button icon="el-icon-edit" size="small" @click="showBatchCategory" plain>编辑</el-button>
+            <el-button icon="el-icon-delete" size="small" @click="postMultDelete" type="danger" plain>删除</el-button>
+            <el-button icon="el-icon-magic-stick" size="small" @click="scrapeCovers" plain>刮削</el-button>
+        </el-form-item>
+        <el-form-item class="view-toggle-item">
+            <div class="view-toggle">
+                <el-button size="small" :type="viewMode === 'table' ? 'primary' : ''" @click="viewMode = 'table'" :class="{active: viewMode === 'table'}">
+                    <i class="el-icon-menu"></i> 表格
+                </el-button>
+                <el-button size="small" :type="viewMode === 'card' ? 'primary' : ''" @click="viewMode = 'card'" :class="{active: viewMode === 'card'}">
+                    <i class="el-icon-s-grid"></i> 卡片
+                </el-button>
+                <el-button size="small" :type="viewMode === 'movie' ? 'primary' : ''" @click="viewMode = 'movie'" :class="{active: viewMode === 'movie'}">
+                    <i class="el-icon-film"></i> 影视
+                </el-button>
+            </div>
+        </el-form-item>
+        </el-form>
+    </div>
+    <div class="list-container">
+    <el-table v-show="viewMode === 'table'" :data="dataList.data" @selection-change="changeSelection" @sort-change="handleSortChange" v-loading="loading" stripe>
+        <el-table-column type="selection" width="50" align="center">
+        </el-table-column>
+        <el-table-column prop="source_id" label="ID" width="80" align="center">
+            <template slot-scope="scope">
+                <span class="id-cell">{{ scope.row.source_id }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column prop="title" label="资源名称" min-width="280">
+            <template slot-scope="scope">
+                <span class="title-cell" :title="scope.row.title">{{ scope.row.title }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column prop="source_category_id_name" label="分类" width="120" align="center">
+            <template slot-scope="scope">
+                <span class="category-tag">{{ scope.row.source_category_id_name || '未分类' }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column prop="is_time" label="类型" width="100" align="center">
+            <template slot-scope="scope">
+                <el-tag size="mini" :type="scope.row.is_time === 0 ? 'success' : scope.row.is_time === 1 ? 'warning' : 'info'">
+                    {{ scope.row.is_time === 0 ? '永久资源' : scope.row.is_time === 1 ? '临时资源' : '外部资源' }}
+                </el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column prop="url" label="资源地址" min-width="200">
+            <template slot-scope="scope">
+                <el-link type="primary" :href="scope.row.url" target="_blank" :underline="false" class="url-link">
+                    {{ scope.row.url }}
+                </el-link>
+            </template>
+        </el-table-column>
+        <el-table-column prop="page_views" label="浏览量" align="center" width="110" sortable="custom">
+            <template slot-scope="scope">
+                <span class="page-views-cell">
+                    {{ scope.row.page_views || 0 }}
+                </span>
+            </template>
+        </el-table-column>
+        <el-table-column prop="create_time" label="入库时间" align="center" width="160">
+        </el-table-column>
+        <el-table-column label="操作" width="140" align="center">
+            <template slot-scope="scope">
+                <el-link type="primary" @click="clickEdit(scope.row)" :underline="false">编辑</el-link>
+                &nbsp;&nbsp;&nbsp;&nbsp;
+                <el-link type="danger" @click="clickDelete(scope.row)" :underline="false">删除</el-link>
+            </template>
+        </el-table-column>
+    </el-table>
+
+    <!-- 卡片视图 -->
+    <div v-show="viewMode === 'card'" class="source-card-grid" v-loading="loading">
+        <div v-if="!dataList.data || dataList.data.length === 0" class="source-card-empty">
+            <i class="el-icon-folder-opened"></i>
+            暂无资源数据
+        </div>
+        <div v-for="(item, index) in (dataList.data || [])" :key="item.source_id"
+            class="source-card" :class="{ 'is-selected': selectList.includes(item.source_id) }"
+            @click="toggleCardSelection(item)">
+            <div class="source-card-cover">
+                <span class="source-card-rank" :class="{top1: index === 0, top2: index === 1, top3: index === 2}">{{ index + 1 }}</span>
+                <span v-if="item.is_top > 0" class="source-card-badge" :class="{hot: item.is_top === 1, new: item.is_top === 2, good: item.is_top === 3}">
+                    {{ item.is_top === 1 ? (rankNames[0] || '热搜榜') : item.is_top === 2 ? (rankNames[1] || '推荐榜') : (rankNames[2] || '好评榜') }}
+                </span>
+                <img v-if="item.vod_pic" :src="item.vod_pic" :alt="item.title" loading="lazy" />
+                <i v-else class="el-icon-picture-outline source-card-cover-placeholder"></i>
+            </div>
+            <div class="source-card-body">
+                <div class="source-card-title" :title="item.title">{{ item.title }}</div>
+                <div class="source-card-meta">
+                    <span class="source-card-category">{{ item.source_category_id_name || '未分类' }}</span>
+                    <span class="source-card-views">
+                        <i class="el-icon-view"></i> {{ item.page_views || 0 }}
+                    </span>
+                </div>
+                <div class="source-card-url">
+                    <i class="el-icon-link"></i>
+                    <a :href="item.url" target="_blank" @click.stop style="color: inherit; text-decoration: none;">{{ item.url | truncate(35) }}</a>
+                </div>
+                <div class="source-card-footer">
+                    <span class="source-card-time">{{ item.create_time }}</span>
+                    <div class="source-card-actions">
+                        <el-button type="primary" size="mini" icon="el-icon-edit" @click.stop="clickEdit(item)">编辑</el-button>
+                        <el-button type="danger" size="mini" icon="el-icon-delete" plain @click.stop="clickDelete(item)">删除</el-button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 影视视图 -->
+    <div v-show="viewMode === 'movie'" class="movie-grid" v-loading="loading">
+        <div v-if="!dataList.data || dataList.data.length === 0" class="source-card-empty">
+            <i class="el-icon-folder-opened"></i>
+            暂无资源数据
+        </div>
+        <div v-for="(item, index) in (dataList.data || [])" :key="item.source_id"
+            class="movie-card" :class="{ 'is-selected': selectList.includes(item.source_id) }"
+            @click="toggleCardSelection(item)">
+            <div class="movie-card-cover">
+                <span class="source-card-rank" :class="{top1: index === 0, top2: index === 1, top3: index === 2}">{{ index + 1 }}</span>
+                <img v-if="item.vod_pic" :src="item.vod_pic" :alt="item.title" loading="lazy" />
+                <i v-else class="el-icon-picture-outline movie-cover-placeholder"></i>
+                <div class="movie-card-overlay">
+                    <el-button type="primary" size="mini" icon="el-icon-edit" @click.stop="clickEdit(item)">编辑</el-button>
+                    <el-button type="danger" size="mini" icon="el-icon-delete" plain @click.stop="clickDelete(item)">删除</el-button>
+                </div>
+            </div>
+            <div class="movie-card-info">
+                <div class="movie-card-title" :title="item.title">{{ item.title }}</div>
+                <div class="movie-card-date">{{ item.create_time }}</div>
+            </div>
+        </div>
+    </div>
+
+    <el-pagination class="page" @size-change="handleSizeChange" :page-sizes="[10, 20, 50, 100,200,500]" :page-size="10"
+        layout="total, sizes, prev, pager, next, jumper" background @current-change="changeCurrentPage"
+        :current-page="dataList.current_page" :page-count="dataList.last_page" :total="dataList.total">
+    </el-pagination>
+    </div>
+    </div>
+
+    <!-- 弹窗 -->
+    {include file="source/dialog_add"/}
+    {include file="source/dialog_edit"/}
+    {include file="source/dialog_cover"/}
+    {include file="source/dialog_import"/}
+    {include file="source/dialog_scrape"/}
+    {include file="source/dialog_category"/}
+
+    {include file="common/footer"/}
+    <script src="/static/admin/js/source-index.js?v={:filemtime(public_path().'static/admin/js/source-index.js')}"></script>
+</html>

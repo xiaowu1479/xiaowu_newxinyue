@@ -1,0 +1,80 @@
+<!-- 刮削封面进度 -->
+<el-dialog title="刮削封面进度" :visible.sync="dialogScrape" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' :close-on-press-escape='false' :show-close='false' width="750px" custom-class="scrape-dialog">
+    <!-- 配置区（未开始时显示） -->
+    <div class="scrape-config" v-if="!scrapeStarted">
+        <div class="scrape-config-row">
+            <label class="scrape-config-label">刮削源</label>
+            <el-select size="small" v-model="scrapeConfig.source" style="width:160px;">
+                <el-option label="百度图片" value="baidu"></el-option>
+                <el-option label="Bing图片" value="bing"></el-option>
+                <el-option label="豆瓣影视" value="movie"></el-option>
+                <el-option label="豆瓣游戏" value="game"></el-option>
+                <el-option label="豆瓣图书" value="book"></el-option>
+                <el-option label="游民星空" value="gamersky"></el-option>
+            </el-select>
+        </div>
+        <div class="scrape-config-row">
+            <label class="scrape-config-label">基础间隔(秒)</label>
+            <el-input-number size="small" v-model="scrapeConfig.delayMin" :min="1" :max="30" controls-position="right" style="width:100px;"></el-input-number>
+            <span style="color:#909399;margin:0 4px;">~</span>
+            <el-input-number size="small" v-model="scrapeConfig.delayMax" :min="1" :max="60" controls-position="right" style="width:100px;"></el-input-number>
+            <span style="color:#909399;font-size:12px;margin-left:4px;">每条随机间隔</span>
+        </div>
+        <div class="scrape-config-row">
+            <label class="scrape-config-label">重试间隔(秒)</label>
+            <el-input-number size="small" v-model="scrapeConfig.retryDelay" :min="1" :max="60" controls-position="right" style="width:100px;"></el-input-number>
+            <label class="scrape-config-label" style="margin-left:16px;">连续失败暂停(秒)</label>
+            <el-input-number size="small" v-model="scrapeConfig.failPause" :min="5" :max="120" controls-position="right" style="width:100px;"></el-input-number>
+        </div>
+        <div class="scrape-config-row">
+            <label class="scrape-config-label">每N条休息</label>
+            <el-input-number size="small" v-model="scrapeConfig.batchSize" :min="1" :max="100" controls-position="right" style="width:100px;"></el-input-number>
+            <span style="color:#909399;margin:0 4px;">条，休息</span>
+            <el-input-number size="small" v-model="scrapeConfig.batchPause" :min="1" :max="120" controls-position="right" style="width:100px;"></el-input-number>
+            <span style="color:#909399;font-size:12px;margin-left:4px;">秒</span>
+        </div>
+    </div>
+    <div class="scrape-summary">
+        <span>总数：{{ scrapeList.length }}</span>
+        <span class="scrape-success">成功：{{ scrapeStat.success }}</span>
+        <span class="scrape-fail">失败：{{ scrapeStat.fail }}</span>
+        <span class="scrape-skip">跳过：{{ scrapeStat.skip }}</span>
+        <span class="scrape-progress" v-if="scrapeStat.current >= 0">进度：{{ scrapeStat.current + 1 }}/{{ scrapeList.length }}</span>
+        <span class="scrape-source" v-if="scrapeStarted">源：{{ scrapeSourceLabel }}</span>
+    </div>
+    <div class="scrape-status-bar" v-if="scrapeCountdown > 0">
+        <i class="el-icon-loading"></i> {{ scrapeStatusText }}（{{ scrapeCountdown }}秒）
+    </div>
+    <div class="scrape-status-bar" v-else-if="scrapeStarted && scrapeStat.current >= 0 && scrapeStat.current < scrapeList.length">
+        <i class="el-icon-loading"></i> {{ scrapeStatusText }}
+    </div>
+    <div class="scrape-status-bar" v-else-if="!scrapeStarted" style="color:#909399;">
+        <i class="el-icon-info"></i> {{ scrapeStatusText }}
+    </div>
+    <el-table :data="scrapeList" height="300" size="mini" border>
+        <el-table-column type="index" label="#" width="45" align="center"></el-table-column>
+        <el-table-column prop="title" label="资源名称" min-width="160" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="status" label="状态" width="80" align="center">
+            <template slot-scope="scope">
+                <el-tag size="mini" :type="scrapeStatusType(scope.row.status)">{{ scrapeStatusText2(scope.row.status) }}</el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column prop="reason" label="说明" min-width="160" show-overflow-tooltip>
+            <template slot-scope="scope">
+                <span :style="{color: scope.row.status === 'fail' ? '#f56c6c' : '#909399'}">{{ scope.row.reason || '-' }}</span>
+            </template>
+        </el-table-column>
+        <el-table-column label="倒计时" width="70" align="center">
+            <template slot-scope="scope">
+                <span v-if="scope.row.status === 'pending' && scope.row.countdown > 0" style="color:#409EFF;font-weight:bold;">{{ scope.row.countdown }}s</span>
+                <span v-else>-</span>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div slot="footer" class="dialog-footer">
+        <el-button v-if="!scrapeStarted && !scrapeAborted" type="primary" @click="scrapeStart">开始刮削</el-button>
+        <el-button v-if="scrapeStarted && scrapeStat.current < scrapeList.length" @click="scrapeAbort" plain>终止刮削</el-button>
+        <el-button @click="scrapeClose">关闭</el-button>
+    </div>
+</el-dialog>

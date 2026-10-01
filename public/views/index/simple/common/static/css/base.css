@@ -1,0 +1,104 @@
+/* ===== 主题变量 ===== */
+
+/* 黑夜模式（默认）：放映厅美学 - 深墨青底 + 暖琥珀聚光 */
+[data-theme="dark"] {
+    --theme-primary: #E8A547;
+    --theme-primary-light: #F0C674;
+    --theme-primary-gradient: linear-gradient(135deg, #E8A547 0%, #F0C674 100%);
+    --theme-primary-hover: #D49536;
+    --theme-secondary-gradient: linear-gradient(135deg, #C8443C 0%, #E8A547 100%);
+    --theme-tertiary-gradient: linear-gradient(135deg, #2A3F5F 0%, #1E3A5F 100%);
+    --theme-background: #0E1620;
+    --theme-surface: #141E2E;
+    --theme-card: #1A2538;
+    --theme-card-gradient: linear-gradient(180deg, #141E2E 0%, #1A2538 100%);
+    --theme-text: #F2EEDC;
+    --theme-text-secondary: #8B9BB4;
+    --theme-border: #2A3A52;
+    --theme-border-strong: #3D5273;
+}
+
+/* 白天模式：暖米底 + 琥珀强调 */
+[data-theme="light"] {
+    --theme-primary: #C8881E;
+    --theme-primary-light: #E8A547;
+    --theme-primary-gradient: linear-gradient(135deg, #C8881E 0%, #E8A547 100%);
+    --theme-primary-hover: #B07418;
+    --theme-secondary-gradient: linear-gradient(135deg, #C8443C 0%, #E8A547 100%);
+    --theme-tertiary-gradient: linear-gradient(135deg, #E8E0CC 0%, #F5F2EA 100%);
+    --theme-background: #F5F2EA;
+    --theme-surface: #FFFFFF;
+    --theme-card: #FAF7F0;
+    --theme-card-gradient: linear-gradient(180deg, #FFFFFF 0%, #FAF7F0 100%);
+    --theme-text: #2A2520;
+    --theme-text-secondary: #6B6557;
+    --theme-border: #E0D9C8;
+    --theme-border-strong: #C9BFA8;
+}
+
+/* ===== 全局基础样式 ===== */
+
+html,
+body {
+    color: var(--theme-text);
+    background-color: var(--theme-background) !important;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+body {
+    letter-spacing: 0.01em;
+    text-rendering: optimizeLegibility;
+}
+
+a {
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+::selection {
+    color: #0E1620;
+    background: var(--theme-primary);
+}
+
+/* ===== 字体规则 ===== */
+
+/* 中文衬线 display 字体（标题/海报名） */
+.search-title,
+.logo-name,
+.hot-category-card-title,
+.home-banner-name,
+.latest-title,
+.ranking-title {
+    font-family: "Noto Serif SC", "Noto Sans SC", serif;
+}
+
+/* 等宽字体（数据/标签/编号） */
+.logo-version,
+.stat-value,
+.hot-category-card-count,
+.hot-category-rank,
+.search-kicker,
+.info-card-title,
+.pan-type-label {
+    font-family: "JetBrains Mono", "Courier New", monospace;
+}
+
+@media (max-width: 768px) {
+    #app > .top-nav .top-nav-logo .logo-version {
+        display: none !important;
+    }
+}
+
+/* ===== Element Plus 对话框覆盖 ===== */
+
+.el-dialog {
+    border-radius: 20px !important;
+    overflow: hidden;
+    border: 1px solid var(--theme-border);
+    box-shadow: 0 28px 80px rgba(18, 24, 38, 0.18) !important;
+}
+
+.el-overlay {
+    backdrop-filter: blur(6px);
+    background: rgba(16, 21, 29, 0.28) !important;
+}

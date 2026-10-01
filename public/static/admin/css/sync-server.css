@@ -1,0 +1,161 @@
+/* 资源同步服务器管理页面样式 */
+.sync-panel {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    padding: 20px 24px;
+    margin-bottom: 16px;
+}
+
+.sync-panel .el-table {
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.sync-panel .el-table th.el-table__cell {
+    background: #f5f7fa !important;
+    color: #909399;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.sync-panel .el-table td.el-table__cell {
+    color: #606266;
+    font-size: 13px;
+}
+
+.key-text {
+    font-size: 12px;
+    color: #606266;
+    word-break: break-all;
+}
+
+.sync-count {
+    font-weight: 600;
+    color: #409eff;
+}
+
+.header-actions {
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.header-actions .header-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.header-actions .sync-key-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+.header-actions .sync-key-label {
+    font-size: 13px;
+    color: #303133;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.header-actions .sync-key-tip {
+    color: #909399;
+    cursor: help;
+    font-size: 15px;
+}
+
+/* 移动端：密钥框与按钮分两行展示 */
+@media (max-width: 768px) {
+    .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .header-actions .sync-key-box {
+        flex-wrap: wrap;
+    }
+    .header-actions .sync-key-box .el-input {
+        width: 100% !important;
+        flex: 1 1 auto;
+    }
+}
+
+.form-tip {
+    font-size: 12px;
+    color: #909399;
+    line-height: 1.6;
+    margin-top: 4px;
+}
+
+/* 同步进度弹窗 */
+.sync-progress {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.sync-loading i {
+    font-size: 42px;
+    color: #409eff;
+}
+
+.sync-loading p {
+    margin: 16px 0 4px;
+    font-size: 15px;
+    color: #303133;
+}
+
+.sync-tip {
+    font-size: 13px !important;
+    color: #909399 !important;
+}
+
+.sync-result {
+    text-align: center;
+}
+
+.sync-result-icon i {
+    font-size: 48px;
+}
+
+.sync-result-title {
+    margin: 12px 0 20px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+}
+
+.sync-stats {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 8px;
+}
+
+.sync-stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+}
+
+.sync-stat-item .stat-num {
+    font-size: 24px;
+    font-weight: 700;
+    color: #303133;
+    line-height: 1.2;
+}
+
+.sync-stat-item .stat-label {
+    font-size: 12px;
+    color: #909399;
+    margin-top: 4px;
+}
+
+.sync-stat-item.success .stat-num { color: #67c23a; }
+.sync-stat-item.primary .stat-num { color: #409eff; }
+.sync-stat-item.warning .stat-num { color: #e6a23c; }
+.sync-stat-item.danger .stat-num { color: #f56c6c; }

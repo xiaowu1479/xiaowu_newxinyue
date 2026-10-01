@@ -1,0 +1,145 @@
+<!-- 夸克导入数据 -->
+<el-dialog title="导入资源" :visible.sync="dialogImport" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="1100px" custom-class="dialog-import">
+    <div class="import-layout">
+        <div class="import-left">
+            <el-form :model="Importform" label-width="90px">
+                <el-form-item prop="source_category_id" label="资源分类">
+                    <el-select size="medium" v-model="Importform.source_category_id" placeholder="请选择分类" clearable style="width: 100%;">
+                        <el-option v-for="item in category" :key="item.source_category_id" :label="item.name"
+                            :value="item.source_category_id">
+                        </el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="资源类型">
+                    <el-select size="medium" v-model="Importform.is_time" placeholder="请选择资源类型" style="width: 100%;">
+                        <el-option label="永久资源" :value="0"></el-option>
+                        <el-option label="临时资源" :value="1"></el-option>
+                        <el-option label="外部资源" :value="2"></el-option>
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="导入方式">
+                    <el-radio-group v-model="Importform.mode" size="medium" @change="importParsedList = []">
+                        <el-radio-button :label="0">表格导入</el-radio-button>
+                        <el-radio-button :label="1">手工导入</el-radio-button>
+                    </el-radio-group>
+                </el-form-item>
+                <el-form-item label="" label-width="0" class="import-indent" v-if="Importform.mode === 0">
+                    <el-upload class="upload-demo" :data="Importform" name="file" ref="ImportUpload" drag
+                        :auto-upload="false" limit="1" :on-exceed="handleExceed" :on-success="handleAvatarSuccess"
+                        :on-change="handleImportFileChange"
+                        action="/admin/source/imports"
+                        accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+                        <i class="el-icon-upload"></i>
+                        <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+                    </el-upload>
+                    <div class="import-text-actions">
+                        <el-button type="primary" plain size="small" icon="el-icon-search" :loading="importParsing" @click="ImportParseExcel()">识别</el-button>
+                        <span class="upload-tip">选择文件后点击识别，右侧预览记录后再提交</span>
+                    </div>
+                </el-form-item>
+                <el-form-item label="" label-width="0" v-if="Importform.mode === 1">
+                    <el-input type="textarea" :rows="10" placeholder="资源名称
+百度链接: https://pan.baidu.com/s/xxxxxx?pwd=xxxx
+夸克链接: https://pan.quark.cn/s/xxxxxx
+阿里链接: https://www.alipan.com/s/xxxxxx
+
+每条资源以名称开头，后面跟各网盘链接，不同资源之间空行分隔" v-model="Importform.textInput"></el-input>
+                    <div class="import-text-actions">
+                        <el-button type="primary" plain size="small" icon="el-icon-search" :loading="importParsing" @click="ImportParse()">识别</el-button>
+                        <span class="upload-tip">点击识别解析内容，右侧预览记录后再提交</span>
+                    </div>
+                </el-form-item>
+            </el-form>
+        </div>
+        <div class="import-right">
+            <div class="import-right-header">
+                <span>识别记录</span>
+                <span class="import-right-count" v-if="importParsedList.length">共 {{ importParsedList.length }} 条</span>
+            </div>
+            <el-table :data="importParsedList" border size="small" height="360"
+                empty-text="暂无识别记录，请在左侧输入内容后点击「识别」">
+                <el-table-column type="index" label="#" width="45" align="center"></el-table-column>
+                <el-table-column prop="title" label="资源名称" min-width="120" show-overflow-tooltip></el-table-column>
+                <el-table-column prop="url" label="资源地址" min-width="200" show-overflow-tooltip>
+                    <template slot-scope="scope">
+                        <el-link :href="scope.row.url" target="_blank" type="primary" :underline="false">{{ scope.row.url }}</el-link>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="type_name" label="网盘类型" width="90" align="center">
+                    <template slot-scope="scope">
+                        <el-tag size="mini" effect="plain">{{ scope.row.type_name }}</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column label="操作" width="60" align="center">
+                    <template slot-scope="scope">
+                        <el-button type="danger" plain size="mini" icon="el-icon-delete" @click="deleteParsedItem(scope.$index)" circle></el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </div>
+    </div>
+    <div slot="footer" class="dialog-footer import-footer">
+        <el-button plain icon="el-icon-refresh-left" @click="Importform.source_category_id = ''">清空分类</el-button>
+        <div class="import-footer-right">
+            <el-button @click="dialogImport = false">取 消</el-button>
+            <el-button type="primary" @click="Importform.mode === 1 ? ImportTextInput() : ImportPost()">提交</el-button>
+        </div>
+    </div>
+</el-dialog>
+
+<!-- 批量导入数据 -->
+<el-dialog title="导入资源" :visible.sync="dialogBatch" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="790px">
+    <el-form :model="Batchform">
+        <el-form-item prop="type" label="选择方式" label-width="70px">
+            <el-radio-group v-model="Batchform.type">
+                <el-radio-button :label="1">直接导入</el-radio-button>
+                <el-radio-button :label="2">转存分享导入</el-radio-button>
+            </el-radio-group>
+            <p style="color: #999;" v-if='Batchform.type==1'>直接导入：链接校验有效后直接入库；Tips：该功能不会检测是否重复；</p>
+            <p style="color: #999;" v-else-if='Batchform.type==2'>将资源转存到自己网盘后分享入库；Tips：该功能不会检测是否重复；</p>
+            <span style="color: #999;" v-if='Batchform.type==1'>支持<font color=orangered>夸克、阿里、UC、百度、迅雷、123、115、天翼、移动、磁力</font>
+                的网盘资源(一次最多可以上传500条资源)</span>
+            <span style="color: #999;" v-else-if='Batchform.type==2'>支持<font color=orangered>夸克、阿里、UC、百度、迅雷、123、115、天翼、移动</font>
+                的网盘资源(一次最多可以上传500条资源)</span>
+        </el-form-item>
+        <el-form-item prop="source_category_id" label="资源分类" label-width="70px" v-if="Batchform.type">
+            <el-select size="medium" v-model="Batchform.source_category_id" placeholder="请选择分类" clearable>
+                <el-option v-for="item in category" :key="item.source_category_id" :label="item.name"
+                    :value="item.source_category_id">
+                </el-option>
+            </el-select>
+        </el-form-item>
+        <el-form-item prop="urls" label="资源分类" label-width="70px" v-if="Batchform.type">
+            <el-input type="textarea" placeholder="资源示例：
+一条资源一行
+https://pan.quark.cn/s/xxxxxxxx
+https://www.alipan.com/s/xxxxxxxxx
+https://drive.uc.cn/s/xxxxxxxxxxx
+https://pan.baidu.com/s/xxxxxx?pwd=xxxx
+https://pan.xunlei.com/s/xxxxxx?pwd=xxxx" v-model="Batchform.urls" rows="20" show-word-limit>
+            </el-input>
+        </el-form-item>
+    </el-form>
+    <div slot="footer" class="dialog-footer">
+        <el-button type="primary" @click="BatchPost()">提交</el-button>
+    </div>
+</el-dialog>
+
+<!-- 批量修改分类 -->
+<el-dialog title="批量修改分类" :visible.sync="dialogBatchCategory" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="400px">
+    <el-form :model="batchCategoryForm">
+        <el-form-item prop="source_category_id" label="资源分类" label-width="90px">
+            <el-select size="medium" v-model="batchCategoryForm.source_category_id" placeholder="请选择分类" required>
+                <el-option v-for="item in category" :key="item.source_category_id" :label="item.name"
+                    :value="item.source_category_id">
+                </el-option>
+            </el-select>
+        </el-form-item>
+    </el-form>
+    <div slot="footer" class="dialog-footer">
+        <el-button type="primary" @click="batchUpdateCategory()">确认修改</el-button>
+    </div>
+</el-dialog>

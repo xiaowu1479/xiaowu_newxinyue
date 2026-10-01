@@ -1,0 +1,52 @@
+<!-- 封面搜索弹窗 -->
+<el-dialog title="选择封面图" :visible.sync="dialogCoverSearch" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="680px" custom-class="dialog-cover-search">
+    <div class="cover-search-tabs">
+        <button :class="['cover-tab', { active: coverSearchType === 'movie' }]" @click="switchCoverTab('movie')">豆瓣影视</button>
+        <button :class="['cover-tab', { active: coverSearchType === 'game' }]" @click="switchCoverTab('game')">豆瓣游戏</button>
+        <button :class="['cover-tab', { active: coverSearchType === 'book' }]" @click="switchCoverTab('book')">豆瓣图书</button>
+        <button :class="['cover-tab', { active: coverSearchType === 'gamersky' }]" @click="switchCoverTab('gamersky')">游民星空</button>
+        <button :class="['cover-tab', { active: coverSearchType === 'bing' }]" @click="switchCoverTab('bing')">Bing图片</button>
+        <button :class="['cover-tab', { active: coverSearchType === 'baidu' }]" @click="switchCoverTab('baidu')">百度图片</button>
+    </div>
+    <div class="cover-search-bar">
+        <el-input size="medium" placeholder="输入资源名称搜索封面" v-model="coverSearchKeyword"
+            @keyup.enter.native="doSearchCover" clearable>
+            <el-button slot="append" icon="el-icon-search" @click="doSearchCover" :loading="coverLoading">搜索</el-button>
+        </el-input>
+    </div>
+    <div v-loading="coverLoading" class="cover-search-results">
+        <div v-if="coverResults.length === 0 && !coverLoading" class="cover-search-empty">
+            <i class="el-icon-picture-outline"></i>
+            <p>输入关键词，点击搜索按钮获取封面图</p>
+        </div>
+        <div v-for="(item, index) in coverResults" :key="index" class="cover-search-item"
+            @click="selectCover(item)">
+            <div class="cover-search-item-img">
+                <img :src="item.cover_proxy || item.cover" :alt="item.title" loading="lazy" @error="coverImgError(index)">
+            </div>
+            <div class="cover-search-item-info">
+                <div class="cover-search-item-title-row">
+                    <span class="cover-search-item-title">{{ item.title }}<span v-if="item.sub_title" class="cover-search-item-subtitle"> {{ item.sub_title }}</span><span v-if="item.year" class="cover-search-item-year"> ({{ item.year }})</span></span>
+                    <span v-if="item.rate" class="cover-search-item-rate">{{ item.rate }}</span>
+                </div>
+                <div class="cover-search-item-meta">
+                    <span v-if="item.type" class="cover-meta-tag cover-meta-type">{{ item.type }}</span>
+                    <span v-if="item.episode" class="cover-meta-tag">{{ item.episode }}集</span>
+                </div>
+                <div v-if="item.abstract" class="cover-search-item-abstract">{{ item.abstract }}</div>
+                <div v-if="item.abstract_2" class="cover-search-item-abstract2">{{ item.abstract_2 }}</div>
+            </div>
+            <i class="el-icon-check cover-search-item-check"></i>
+        </div>
+    </div>
+    <div class="cover-search-footer">
+        <i class="el-icon-info"></i>
+        <span>{{ coverSearchTip }}</span>
+        <div class="cover-search-footer-switch">
+            <span>替换资源名称</span>
+            <el-switch v-model="coverReplaceTitle" :disabled="coverSearchType === 'bing' || coverSearchType === 'baidu'" size="mini">
+            </el-switch>
+        </div>
+    </div>
+</el-dialog>

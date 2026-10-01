@@ -1,0 +1,433 @@
+{include file="simple/common/header"}
+<meta name="referrer" content="never">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/latest.css">
+</head>
+
+<body>
+    <div class="headBg" style="background-image: url({$config.home_bg});display:none;"></div>
+    <div id="app" v-cloak>
+
+        <!-- 顶部导航栏 -->
+        {include file="simple/common/navbar"}
+
+        <div class="latest-page-container">
+            <div class="filter-section">
+                <div class="filter-section-title">更新筛选</div>
+                <!-- 网盘类型筛选 -->
+                <div class="filter-row">
+                    <span class="filter-label">网盘</span>
+                    <div class="filter-options">
+                        <span class="filter-option" :class="{active: currentPanType === ''}" @click="setPanType('')">全部</span>
+                        <span class="filter-option"
+                              v-for="item in panTypeList"
+                              :key="item.id"
+                              :class="{active: currentPanType === item.id}"
+                              @click="setPanType(item.id)">
+                            {{item.name}}
+                        </span>
+                    </div>
+                </div>
+                <!-- 资源分类筛选 -->
+                <div class="filter-row">
+                    <span class="filter-label">分类</span>
+                    <div class="filter-options">
+                        <span class="filter-option" :class="{active: currentCategory === ''}" @click="setCategory('')">全部</span>
+                        <span class="filter-option"
+                              v-for="item in categoryList"
+                              :key="item.id"
+                              :class="{active: currentCategory === item.id}"
+                              @click="setCategory(item.id)">
+                            {{item.name}}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content section -->
+            <div class="latest-content">
+                <div class="latest-content-header">
+                    <div class="latest-content-title">
+                        <i class="iconfont icon-shijian"></i>
+                        最近更新
+                    </div>
+                    <div class="latest-total">共 {{total}} 条资源</div>
+                </div>
+
+                <!-- Loading state -->
+                <div class="latest-loading" v-if="loading">
+                    <i class="iconfont icon-loading icon-spin" style="font-size: 32px; color: var(--theme-primary);"></i>
+                </div>
+
+                <!-- Empty state -->
+                <div class="latest-empty" v-else-if="list.length === 0">
+                    <div class="latest-empty-icon">
+                        <i class="iconfont icon-empty"></i>
+                    </div>
+                    <div class="latest-empty-text">暂无数据</div>
+                </div>
+
+                <!-- List -->
+                <div class="latest-list" v-else>
+                    <div class="latest-item" v-for="(item, index) in list" :key="item.id" @click="goToDetail(item)">
+                        <div class="latest-item-number" :class="{top: (currentPage - 1) * pageSize + index < 3}">
+                            {{(currentPage - 1) * pageSize + index + 1}}
+                        </div>
+                        <div class="latest-item-info">
+                            <div class="latest-item-title">{{item.title}}</div>
+                            <div class="latest-item-meta">
+                                <span class="latest-item-tag">{{item.pantype}}</span>
+                                <span class="latest-item-time">
+                                    <i class="iconfont icon-shijian"></i>
+                                    {{item.datetime}}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="latest-item-action">
+                            <button class="latest-item-btn">查看</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="latest-pagination" v-if="totalPages > 1">
+                    <button class="latest-page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">上一页</button>
+                    <span class="latest-page-info">{{currentPage}} / {{totalPages}}</span>
+                    <button class="latest-page-btn" :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">下一页</button>
+                </div>
+            </div>
+        </div>
+
+        <template v-if="!loading && list.length > 0">
+        {include file="simple/common/foot"}
+        </template>
+    </div>
+
+    <script src="__STATIC__/simple/common/static/js/vue.global.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/index.full.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/axios.min.js"></script>
+    <script src="__STATIC__/simple/common/static/js/qrcanvas@3.js"></script>
+    <script src="__STATIC__/simple/common/static/js/app-core.js"></script>
+    <script src="__STATIC__/simple/common/static/js/search.js?v=20260814"></script>
+    <script type="text/javascript">
+        const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+
+        // 网盘类型映射
+        const panTypeMap = {0: '夸克网盘', 1: '阿里云盘', 2: '百度网盘', 3: 'UC网盘', 4: '迅雷云盘', 5: '123云盘', 6: '115网盘', 7: '天翼云盘', 8: '移动云盘', 9: '磁力链接', 10: '光鸭网盘'};
+
+        const app = createApp({
+            setup() {
+                const drawer = ref(false);
+                const qcodeVisible = ref(false);
+                const loading = ref(true);
+                const list = ref([]);
+                const currentPage = ref(1);
+                const pageSize = ref(20);
+                const total = ref(0);
+                const currentPanType = ref('');
+                const currentCategory = ref('');
+
+                // 弹窗相关
+                const dialogUrl = ref(false);
+                const dialogLoading = ref(false);
+                const dialogItem = ref({});
+
+                if (window.searchModule) {
+                    window.searchModule.setupResourceDialog({
+                        dialogUrl, dialogLoading, dialogItem
+                    });
+                }
+
+                // 设备类型和PC端显示方式
+                const is_m = ref(0);
+                const pc_type = ref(parseInt('{$config.pc_type}') || 0);
+
+                // 主题相关
+                const currentTheme = ref('red');
+                const showThemeDropdown = ref(false);
+                const themeSwitcherRef = ref(null);
+
+                const panTypeList = ref({:json_encode($panTypeList)});
+                const categoryList = ref({:json_encode($categoryList)});
+
+                const totalPages = computed(() => Math.ceil(total.value / pageSize.value));
+
+                // 加载数据
+                const loadData = async () => {
+                    loading.value = true;
+                    try {
+                        const response = await axios.get('/api/other/get_latest_sources_page', {
+                            params: {
+                                page: currentPage.value,
+                                page_size: pageSize.value,
+                                pan_type: currentPanType.value,
+                                category_id: currentCategory.value
+                            }
+                        });
+                        if (response.data.code === 200) {
+                            list.value = response.data.data.items || [];
+                            total.value = response.data.data.total || 0;
+                        } else {
+                            list.value = [];
+                            total.value = 0;
+                        }
+                    } catch (error) {
+                        console.error('加载数据失败:', error);
+                        list.value = [];
+                        total.value = 0;
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 切换网盘类型
+                const setPanType = (type) => {
+                    currentPanType.value = type;
+                    currentPage.value = 1;
+                    loadData();
+                };
+
+                // 切换分类
+                const setCategory = (id) => {
+                    currentCategory.value = id;
+                    currentPage.value = 1;
+                    loadData();
+                };
+
+                // 切换页码
+                const changePage = (page) => {
+                    if (page < 1 || page > totalPages.value) return;
+                    currentPage.value = page;
+                    loadData();
+                    // 滚动到顶部
+                    document.querySelector('.latest-content').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                };
+
+                // 显示资源弹窗
+                const showResourceDialog = (item) => {
+                    // 使用展开运算符复制对象，避免引用问题
+                    dialogItem.value = { ...item };
+                    dialogLoading.value = false;
+                    // 生成二维码
+                    if (item.showUrl) {
+                        Vue.nextTick(() => {
+                            setTimeout(() => {
+                                const qrcodeEl = document.getElementById('qrcode');
+                                if (qrcodeEl && typeof qrcanvas !== 'undefined') {
+                                    qrcodeEl.innerHTML = '';
+                                    const canvas = qrcanvas.qrcanvas({
+                                        data: item.showUrl,
+                                        size: 120
+                                    });
+                                    qrcodeEl.appendChild(canvas);
+                                } else {
+                                    // 重试：el-dialog 过渡动画可能需要更长时间
+                                    setTimeout(() => {
+                                        const el2 = document.getElementById('qrcode');
+                                        if (el2 && typeof qrcanvas !== 'undefined') {
+                                            el2.innerHTML = '';
+                                            const canvas2 = qrcanvas.qrcanvas({
+                                                data: item.showUrl,
+                                                size: 120
+                                            });
+                                            el2.appendChild(canvas2);
+                                        }
+                                    }, 300);
+                                }
+                            }, 300);
+                        });
+                    }
+                };
+
+                // 复制到剪贴板
+                const copyToClipboard = (text) => {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            ElementPlus.ElMessage.success('复制成功');
+                        }).catch(() => {
+                            fallbackCopy(text);
+                        });
+                    } else {
+                        fallbackCopy(text);
+                    }
+                };
+
+                // 降级复制方案
+                const fallbackCopy = (text) => {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-9999px';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        ElementPlus.ElMessage.success('复制成功');
+                    } catch (err) {
+                        ElementPlus.ElMessage.error('复制失败，请手动复制');
+                    }
+                    document.body.removeChild(textArea);
+                };
+
+                // 迅雷下载
+                const downloadWithThunder = (url, title) => {
+                    const thunderUrl = 'thunder://' + btoa('AA' + url + 'ZZ');
+                    window.location.href = thunderUrl;
+                };
+
+                // 跳转到详情（改为显示弹窗）
+                const goToDetail = (item) => {
+                    // 增加浏览量（如果有id）
+                    if (item.id) {
+                        axios.post('/api/search/incrementViews', {
+                            id: item.id
+                        }).catch((err) => {
+                            console.log('浏览量增加失败:', err);
+                        });
+                    }
+                    
+                    dialogLoading.value = true;
+                    dialogUrl.value = true;
+                    dialogItem.value = {};
+
+                    const rawUrl = item.url || '';
+
+                    if (rawUrl.startsWith('http') || rawUrl.startsWith('magnet:')) {
+                        item.showUrl = rawUrl;
+                        showResourceDialog(item);
+                    } else {
+                        axios.post('/api/other/save_url', {
+                            url: encodeURIComponent(rawUrl),
+                            title: item.title
+                        }).then((res) => {
+                            if (res.data.code == 200) {
+                                item.url = res.data.data.url;
+                                item.showUrl = res.data.data.url;
+                            } else {
+                                item.showUrl = '';
+                                item.message = res.data.message || '获取失败';
+                            }
+                            showResourceDialog(item);
+                        }).catch(() => {
+                            item.showUrl = '';
+                            item.message = '网络错误，请重试';
+                            showResourceDialog(item);
+                        });
+                    }
+                };
+
+                // 初始化主题
+                const initTheme = () => {
+                    let defaultTheme = '{$config.simple_default_theme}' || 'dark';
+                    if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
+                    let savedTheme = localStorage.getItem('app-theme') || defaultTheme;
+                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
+                    currentTheme.value = savedTheme;
+                    document.documentElement.setAttribute('data-theme', savedTheme);
+                };
+
+                // 切换下拉显示
+                const toggleThemeDropdown = () => {
+                    showThemeDropdown.value = !showThemeDropdown.value;
+                };
+
+                // 切换主题
+                const switchTheme = (theme) => {
+                    currentTheme.value = theme;
+                    document.documentElement.setAttribute('data-theme', theme);
+                    localStorage.setItem('app-theme', theme);
+                    showThemeDropdown.value = false;
+                };
+
+                // 点击外部关闭下拉
+                const closeThemeDropdown = (e) => {
+                    if (themeSwitcherRef.value && !themeSwitcherRef.value.contains(e.target)) {
+                        showThemeDropdown.value = false;
+                    }
+                };
+
+                // 检测设备类型
+                const handleDeviceType = () => {
+                    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+                    is_m.value = isMobile ? 1 : 0;
+                };
+
+                onMounted(() => {
+                    handleDeviceType();
+                    initTheme();
+                    loadData();
+                    document.addEventListener('click', closeThemeDropdown);
+                    window.addEventListener('resize', handleDeviceType);
+                });
+
+                onUnmounted(() => {
+                    document.removeEventListener('click', closeThemeDropdown);
+                    window.removeEventListener('resize', handleDeviceType);
+                });
+
+                const keyword = ref('');
+                const {
+                    searchBtn, searchDialogVisible, searchDialogStage, searchSelectedPanType,
+                    openSearchDialog, selectPanAndSearch, backToSelectPanType, onDialogKeywordEnter,
+                    startMultiSearch, selectAllPanTypes, clearPanTypes,
+                    resultFilterPanType, availableResultTabs, setResultFilterPanType
+                } = window.searchModule.createDialogState(keyword, { validateKeywordOnSearch: false, selectPanAndSearchMode: 'toggle' });
+                const content = ref('');
+                const layerVisible = ref(false);
+                const saveBtn = () => { layerVisible.value = false; };
+                const toggleTheme = () => {
+                    const newTheme = currentTheme.value === 'dark' ? 'light' : 'dark';
+                    currentTheme.value = newTheme;
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('app-theme', newTheme);
+                };
+                const downloadWithThunder = () => {};
+                const panTypeMap = ref({});
+                const copyToClipboard = (text) => { if (navigator.clipboard) navigator.clipboard.writeText(text); };
+
+                return {
+                    drawer,
+                    qcodeVisible,
+                    loading,
+                    list,
+                    currentPage,
+                    pageSize,
+                    total,
+                    totalPages,
+                    currentPanType,
+                    currentCategory,
+                    panTypeList,
+                    categoryList,
+                    currentTheme,
+                    showThemeDropdown,
+                    themeSwitcherRef,
+                    dialogUrl,
+                    dialogLoading,
+                    dialogItem,
+                    keyword, searchBtn, content, layerVisible, saveBtn, toggleTheme,
+                    switchPanFromResource, downloadWithThunder,
+                    is_m, pc_type, panTypeMap,
+                    copyToClipboard,is_m,
+                    pc_type,
+                    panTypeMap,
+                    setPanType,
+                    setCategory,
+                    changePage,
+                    goToDetail,
+                    copyToClipboard,
+                    downloadWithThunder,
+                    toggleThemeDropdown,
+                    switchTheme,
+                    searchDialogVisible, searchDialogStage, searchSelectedPanType,
+                    openSearchDialog, selectPanAndSearch, backToSelectPanType, onDialogKeywordEnter,
+                    startMultiSearch, selectAllPanTypes, clearPanTypes,
+                    resultFilterPanType, availableResultTabs, setResultFilterPanType
+                };
+            }
+        });
+
+        app.use(ElementPlus);
+        app.mount('#app');
+        document.documentElement.removeAttribute('data-page-loading');
+    </script>
+</body>
+</html>

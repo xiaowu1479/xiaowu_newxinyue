@@ -1,0 +1,294 @@
+{php}$navMenuItems = ',' . ($config['nav_menu_items'] ?? 'home,ranking,top250,game,category,contact') . ',';{/php}
+<div class="top-nav">
+    <div class="top-nav-box">
+        <a href="/" class="top-nav-logo">
+            {notempty name="config.logo"}
+            <img class="logo-img" src="{$config.logo}" alt="{$config.app_name}">
+            {else/}
+            <div class="logo-placeholder">IX</div>
+            {/notempty}
+            <div class="logo-text">
+                <div class="logo-title-row">
+                    <span class="logo-name">{$config.app_name|default='星月索引'}</span>
+                    <span class="logo-version">Index</span>
+                </div>
+                <span class="logo-subtitle">{$config.app_description|default='资源搜索与热榜导航入口'}</span>
+            </div>
+        </a>
+
+        <div class="top-nav-menu">
+            {if condition="strpos($navMenuItems, ',home,') !== false"}
+            <a href="/" class="nav-menu-item">首页</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',ranking,') !== false"}
+            <a href="/ranking" class="nav-menu-item">夸克榜单</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',top250,') !== false"}
+            <a href="/top250" class="nav-menu-item">Top250</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',game,') !== false"}
+            <a href="/game" class="nav-menu-item">游戏排行</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',category,') !== false"}
+            <a href="/category" class="nav-menu-item">最近更新</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',contact,') !== false"}
+            {notempty name="config.qcode"}
+            <div class="nav-menu-item" @click="qcodeVisible = true">联系我们</div>
+            {/notempty}
+            {/if}
+            {notempty name="config.app_links"}
+            {$config.app_links|raw}
+            {/notempty}
+        </div>
+
+        <div class="nav-search-box">
+            <span class="nav-search-icon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </span>
+            <input type="text" v-model="keyword" placeholder="搜索：片名 / 关键词 / 主演" @keyup.enter="searchBtn">
+            <button class="search-btn" @click="searchBtn">搜索</button>
+        </div>
+
+        <div class="top-nav-actions">
+            <div class="nav-search-icon-btn" @click="openSearchDialog">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </div>
+            <div class="theme-switcher">
+                <div class="theme-switcher-btn" @click="toggleTheme" :title="currentTheme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'">
+                    <svg v-if="currentTheme === 'dark'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </div>
+            </div>
+            <div class="nav-menu-icon iconfont icon-caidan" @click="drawer = true"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 联系我们弹窗 -->
+{notempty name="config.qcode"}
+<el-dialog v-if="qcodeVisible" v-model="qcodeVisible" title="联系我们" width="320" align-center>
+    <div class="qrcode-card">
+        <img src="{$config.qcode}" alt="联系我们" />
+        <p style="margin-top:12px;color:var(--theme-text-secondary);text-align:center;">扫码加入群聊，获取更多资源</p>
+    </div>
+</el-dialog>
+{/notempty}
+
+<!-- 提交需求弹窗 -->
+<el-dialog v-if="layerVisible" v-model="layerVisible" width="360">
+    <div class="request-box">
+        <div class="request-title">提交需求</div>
+        <el-input v-model="content" placeholder="请输入片名、关键词或资源需求" type="textarea" resize="none" :rows="5"></el-input>
+        <button class="request-submit" type="button" @click="saveBtn">提交</button>
+    </div>
+</el-dialog>
+
+<!-- 手机端抽屉菜单 -->
+<el-dialog v-if="drawer" v-model="drawer" width="260" center>
+    <div class="nav-drawer">
+        <div class="nav-drawer-menu">
+            {if condition="strpos($navMenuItems, ',home,') !== false"}
+            <a href="/" class="nav-drawer-item">首页</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',ranking,') !== false"}
+            <a href="/ranking" class="nav-drawer-item">夸克榜单</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',top250,') !== false"}
+            <a href="/top250" class="nav-drawer-item">Top250</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',game,') !== false"}
+            <a href="/game" class="nav-drawer-item">游戏排行</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',category,') !== false"}
+            <a href="/category" class="nav-drawer-item">最近更新</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',contact,') !== false"}
+            {notempty name="config.qcode"}
+            <div class="nav-drawer-item" @click="qcodeVisible = true; drawer = false">联系我们</div>
+            {/notempty}
+            {/if}
+            {if condition="strpos($navMenuItems, ',demand,') !== false"}
+            {empty name="config.app_demand"}
+            <div class="nav-drawer-item" @click="layerVisible = true; drawer = false">提交需求</div>
+            {/empty}
+            {/if}
+            {notempty name="config.app_links"}
+                {$config.app_links|raw}
+            {/notempty}
+        </div>
+    </div>
+</el-dialog>
+
+<!-- 搜索弹窗：先选线路，再显示结果 -->
+<el-dialog v-model="searchDialogVisible" class="search-dialog" :close-on-click-modal="true" width="780px" align-center>
+    <template #header>
+        <div class="search-dialog-header">
+            <span class="search-dialog-header-title">搜索资源</span>
+        </div>
+    </template>
+    <div class="search-dialog-body">
+        <div class="search-dialog-searchbar">
+            <svg class="search-dialog-searchbar-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <input class="search-dialog-searchbar-input" v-model="keyword" @keyup.enter="onDialogKeywordEnter" placeholder="输入片名、关键词或主演...">
+            <button type="button" class="search-dialog-searchbar-btn" v-show="searchDialogStage === 'results'" @click="onDialogKeywordEnter">搜索</button>
+        </div>
+        <div v-if="searchDialogStage === 'select'" class="search-pan-select">
+            <div class="search-pan-tip">输入关键字，选择一条或多条线路后搜索</div>
+            <div class="search-pan-grid">
+                {foreach name="panTypeMap" key="pk" item="panName"}
+                <button type="button" class="search-pan-chip" :class="{active: searchSelectedPanType.includes('{$pk}')}" data-type="{$pk}" @click="selectPanAndSearch('{$pk}')">
+                    <span class="search-pan-chip-name">{$panName}</span>
+                </button>
+                {/foreach}
+            </div>
+            <div class="search-pan-actions" v-if="typeof startMultiSearch === 'function'">
+                <button type="button" class="search-pan-action-btn" @click="selectAllPanTypes(<?php echo htmlspecialchars(json_encode(array_map('strval', array_keys($panTypeMap ?? [])), JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)" :disabled="searchSelectedPanType.length === <?php echo count($panTypeMap ?? []); ?>">全选</button>
+                <button type="button" class="search-pan-action-btn" @click="clearPanTypes" :disabled="searchSelectedPanType.length === 0">清空</button>
+                <button type="button" class="search-pan-action-btn primary" :disabled="searchSelectedPanType.length === 0" @click="startMultiSearch">开始搜索</button>
+            </div>
+        </div>
+        <div v-show="searchDialogStage === 'results'" class="search-dialog-results" id="searchResultSection">
+            <div class="search-result-header">
+                <div class="search-result-title">
+                    <div class="search-result-title-left">
+                        <span class="search-result-count" id="searchResultCount"></span>
+                    </div>
+                </div>
+                <span class="search-dialog-back" onclick="window.__checkSearchLinks && window.__checkSearchLinks()" {if condition="$config.is_quan_zc == 1"}style="display:none;"{/if}>
+                    <i class="iconfont icon-qiehuan"></i> 资源检测
+                </span>
+            </div>
+            <div v-if="availableResultTabs && availableResultTabs.length > 1" class="search-result-tabs">
+                <button type="button" class="search-result-tab" v-for="tab in availableResultTabs" :key="tab.id" :class="{active: resultFilterPanType === tab.id}" @click="setResultFilterPanType(tab.id)">{{tab.name}} ({{tab.count}})</button>
+            </div>
+            <div id="searchResultContent"></div>
+        </div>
+    </div>
+</el-dialog>
+
+<!-- 资源弹窗 -->
+<el-dialog v-if="dialogUrl" title="获取资源" v-model="dialogUrl" class="resource-dialog" :close-on-click-modal="false" width="420px">
+    <div class="resource-dialog-content" v-if="dialogUrl">
+        <div v-if="dialogLoading" class="loading-content">
+            <div class="loading-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+                <div class="spinner-ring"></div>
+            </div>
+            <div class="loading-text">资源正在获取中，请稍候...</div>
+            <div class="loading-subtext">正在连接网盘服务器</div>
+        </div>
+        <div v-else-if="dialogItem.showUrl">
+            <div v-if="dialogItem.showUrl.startsWith('magnet:')" class="magnet-content">
+                <div class="success-title">获取成功!</div>
+                <div class="resource-subtitle">{{dialogItem.title}}</div>
+                <div class="scan-tip">磁力资源下载</div>
+                <div class="scan-desc">请使用迅雷APP扫码或点击下方按钮下载</div>
+                <div class="qrcode-wrapper">
+                    <div class="qrcode" id="qrcode"></div>
+                </div>
+                <div class="url-box">
+                    <div class="url-label">资源地址：</div>
+                    <div class="url-text">{{dialogItem.showUrl}}</div>
+                </div>
+                <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
+                <div class="tip-text">打开迅雷APP扫码或点击下方按钮下载</div>
+                <div class="dialog-actions">
+                    <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                    <button @click="downloadWithThunder(dialogItem.showUrl, dialogItem.title)" class="btn-secondary">迅雷下载</button>
+                    <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
+                </div>
+            </div>
+            <div v-else class="normal-content">
+                <div class="success-title">获取成功!</div>
+                <div class="resource-subtitle">{{dialogItem.title}}</div>
+                <template v-if="is_m == 1">
+                    <div class="url-box" style="margin-top: 20px;">
+                        <div class="url-label">资源地址：</div>
+                        <div class="url-text">{{dialogItem.showUrl}}</div>
+                    </div>
+                    <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
+                    <div class="dialog-actions">
+                        <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                        <a :href="dialogItem.showUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary">打开链接</a>
+                        <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
+                    </div>
+                </template>
+                <template v-else>
+                    <template v-if="pc_type == 1">
+                        <div class="url-box" style="margin-top: 20px;">
+                            <div class="url-label">资源地址：</div>
+                            <div class="url-text">{{dialogItem.showUrl}}</div>
+                        </div>
+                        <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
+                        <div class="dialog-actions">
+                            <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                            <a :href="dialogItem.showUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary">打开链接</a>
+                            <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
+                        </div>
+                    </template>
+                    <template v-else-if="pc_type == 2">
+                        <div class="scan-tip" style="margin-top: 10px;">
+                            请使用 <span class="pan-name">{{panTypeMap[dialogItem.is_type] || '夸克网盘'}}</span> 扫码获取
+                        </div>
+                        <div class="scan-desc">打开{{panTypeMap[dialogItem.is_type] || '夸克'}}APP - 点击搜索框中的相机 - 点击扫码</div>
+                        <div class="qrcode-wrapper">
+                            <div class="qrcode" id="qrcode"></div>
+                        </div>
+                        <div class="dialog-actions">
+                            <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div class="scan-tip">
+                            请使用 <span class="pan-name">{{panTypeMap[dialogItem.is_type] || '夸克网盘'}}</span> 扫码获取
+                        </div>
+                        <div class="scan-desc">打开{{panTypeMap[dialogItem.is_type] || '夸克'}}APP - 点击搜索框中的相机 - 点击扫码</div>
+                        <div class="qrcode-wrapper">
+                            <div class="qrcode" id="qrcode"></div>
+                        </div>
+                        <div class="url-box">
+                            <div class="url-label">资源地址：</div>
+                            <div class="url-text">{{dialogItem.showUrl}}</div>
+                        </div>
+                        <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
+                        <div class="dialog-actions">
+                            <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                            <a :href="dialogItem.showUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary">打开链接</a>
+                            <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
+                        </div>
+                    </template>
+                </template>
+            </div>
+        </div>
+        <div v-else-if="!dialogLoading" class="error-content">
+            <div class="error-title">获取失败</div>
+            <div class="error-message">{{dialogItem.message}}</div>
+            <div class="dialog-actions">
+                <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
+            </div>
+        </div>
+    </div>
+</el-dialog>

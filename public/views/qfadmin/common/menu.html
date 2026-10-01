@@ -1,0 +1,67 @@
+{if condition="$menuLists"}
+<el-aside width="200px">
+    <el-menu class="el-menu-vertical-demo" text-color="#333333" default-active="'{$node.node_pid}-{$node.node_id}'"
+        :collapse="false" :default-openeds="['{$node.node_pid}']">
+        <li class="logo-item"><a class="titlehome" href="/qfadmin"><img
+            src="/static/admin/images/logo.png" /><span class="logo-text"><span class="logo-line1">PT搜索</span><span class="logo-line2">panbot.cn</span></span></a></li>
+        {volist name="menuLists" id="item"}
+        {if condition="count($item.subList)>0"}
+        <el-submenu index="{$item.node_id}">
+            <template slot="title">
+                <i {if condition='$item.node_icon' }class="{$item.node_icon}" {else}class="el-icon-menu" {/if}></i>
+                {$item.node_title}
+            </template>
+            {volist name="$item.subList" id="subItem"}
+            <el-menu-item
+                onclick="location.href='/{$subItem.node_module}/{$subItem.node_controller}/{$subItem.node_action}';"
+                index="{$item.node_id}-{$subItem.node_id}" {if
+                condition="strtolower($subItem.node_controller)==strtolower($controller) && strtolower($subItem.node_action)==strtolower($action)"
+                }class="is-active" {/if}>{$subItem.node_title}</el-menu-item>
+            {/volist}
+        </el-submenu>
+        {else}
+        {if condition="$item.node_controller=='' && $item.node_action==''"}
+        <el-menu-item index="{$item.node_id}" onclick="testalert('暂无该功能')">
+            <i {if condition='$item.node_icon' }class="{$item.node_icon}" {else}class="el-icon-menu" {/if}></i>
+            {$item.node_title}
+        </el-menu-item>
+        {else}
+        <el-menu-item index="{$item.node_id}"
+            onclick="location.href='/{$item.node_module}/{$item.node_controller}/{$item.node_action}';" {if
+            condition="strtolower($item.node_controller)==strtolower($controller) && strtolower($item.node_action)==strtolower($action)"
+            }class="is-active" {/if}>
+            <i {if condition='$item.node_icon' }class="{$item.node_icon}" {else}class="el-icon-menu" {/if}></i>
+            {$item.node_title}
+        </el-menu-item>
+        {/if}
+        {/if}
+        {/volist}
+        <div style="height: 80px;"></div>
+    </el-menu>
+    <div class="sidebar-user">
+        <el-dropdown trigger="click">
+            <div class="user-trigger">
+                <div class="user-avatar">{$adminInfo['admin_account']|substr=0,1|strtoupper}</div>
+                <div class="user-meta">
+                    <div class="user-name">{$adminInfo['admin_account']}</div>
+                    <div class="user-role">{$adminInfo['admin_group']==1 ? '超级管理员' : '管理员'}</div>
+                </div>
+                <i class="el-icon-arrow-up user-arrow"></i>
+            </div>
+            <el-dropdown-menu slot="dropdown" class="user-dropdown">
+                <el-dropdown-item onclick="location.href='/qfadmin/admin/updatemyinfo';"><i class="el-icon-user"></i> 修改资料</el-dropdown-item>
+                <el-dropdown-item onclick="location.href='/qfadmin/admin/motifypassword';"><i class="el-icon-lock"></i> 修改密码</el-dropdown-item>
+                <el-dropdown-item onclick="location.href='/qfadmin/system/clean';"><i class="el-icon-refresh"></i> 清除缓存</el-dropdown-item>
+                <div class="user-dropdown-divider"></div>
+                <el-dropdown-item class="user-logout" onclick="logout()"><i class="el-icon-switch-button"></i> 退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+        </el-dropdown>
+    </div>
+</el-aside>
+{else}
+<div
+    style="position: absolute;top: -72px;left: 0;width: 160px;background-color: #ffffff;box-shadow: 0 0 12px 0 rgb(47 75 168 / 6%);border-radius: 12px;">
+    <a class="title" href="/admin" style="display: block;height: 62px;line-height: 62px;text-align: center;"><img
+            src="/static/admin/images/logo.png" width="40px" style="vertical-align: middle;" /></a>
+</div>
+{/if}

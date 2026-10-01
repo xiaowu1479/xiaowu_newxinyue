@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>后台管理系统</title>
+    <style>
+        .el-main { background-color: #f6f7fb !important; box-shadow: none !important; }
+        .dashboard { padding: 0; }
+        /* KPI 卡片 */
+        .kpi-row { margin-bottom: 18px; }
+        .kpi-card {
+            display: flex; align-items: center; padding: 20px 22px;
+            border-radius: 10px; background: #fff;
+            transition: box-shadow .2s, transform .2s;
+        }
+        .kpi-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+        .kpi-icon {
+            width: 50px; height: 50px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; margin-right: 16px;
+        }
+        .kpi-icon i { font-size: 24px; color: #fff; }
+        .kpi-label { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+        .kpi-value { font-size: 26px; font-weight: 700; color: #1e293b; line-height: 1.2; }
+        .kpi-sub { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+
+        /* 图表卡片 */
+        .chart-card { border-radius: 10px; background: #fff; margin-bottom: 18px; overflow: hidden; }
+        .chart-header {
+            padding: 16px 20px; border-bottom: 1px solid #f0f0f0;
+            display: flex; align-items: center;
+        }
+        .chart-header::before {
+            content: ''; display: inline-block; width: 3px; height: 16px;
+            border-radius: 2px; margin-right: 10px; background: #6366f1;
+        }
+        .chart-header.amber::before { background: #f59e0b; }
+        .chart-header.green::before { background: #10b981; }
+        .chart-header.pink::before { background: #ec4899; }
+        .chart-title { font-size: 15px; font-weight: 600; color: #1e293b; }
+        .chart-body { padding: 16px 12px; }
+
+        /* 系统信息面板 - 深色终端风格 */
+        .sys-panel {
+            background: #fff; border-radius: 10px; padding: 20px 22px;
+            margin-bottom: 18px; height: 100%; box-sizing: border-box;
+        }
+        .sys-panel-title {
+            font-size: 14px; font-weight: 600; color: #1e293b;
+            margin-bottom: 16px; padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex; align-items: center;
+        }
+        .sys-panel-title::before {
+            content: ''; display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%; background: #22c55e; margin-right: 8px;
+            box-shadow: 0 0 6px rgba(34,197,94,.5);
+        }
+        .sys-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 9px 0; border-bottom: 1px solid #f3f4f6;
+        }
+        .sys-row:last-child { border-bottom: none; }
+        .sys-key { font-size: 13px; color: #6b7280; }
+        .sys-val { font-size: 13px; color: #1e293b; font-family: 'Courier New', monospace; }
+
+        .el-card { border: none; }
+    </style>
+    {include file="common/header"/}
+
+    <div class="dashboard">
+        <!-- KPI 卡片 -->
+        <el-row :gutter="18" class="kpi-row">
+            <el-col :span="6">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:linear-gradient(135deg,#6366f1,#818cf8);"><i class="el-icon-search"></i></div>
+                    <div>
+                        <div class="kpi-label">今日搜索</div>
+                        <div class="kpi-value">{{kpi.todaySearch}}</div>
+                    </div>
+                </div>
+            </el-col>
+            <el-col :span="6">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:linear-gradient(135deg,#ec4899,#f472b6);"><i class="el-icon-data-line"></i></div>
+                    <div>
+                        <div class="kpi-label">总搜索量</div>
+                        <div class="kpi-value">{{kpi.totalSearch}}</div>
+                    </div>
+                </div>
+            </el-col>
+            <el-col :span="6">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:linear-gradient(135deg,#10b981,#34d399);"><i class="el-icon-folder-opened"></i></div>
+                    <div>
+                        <div class="kpi-label">资源总数</div>
+                        <div class="kpi-value">{{kpi.totalSource}}</div>
+                    </div>
+                </div>
+            </el-col>
+            <el-col :span="6">
+                <div class="kpi-card">
+                    <div class="kpi-icon" style="background:linear-gradient(135deg,#f59e0b,#fbbf24);"><i class="el-icon-circle-plus-outline"></i></div>
+                    <div>
+                        <div class="kpi-label">今日新增资源</div>
+                        <div class="kpi-value">{{kpi.todayNewSource}}</div>
+                    </div>
+                </div>
+            </el-col>
+        </el-row>
+
+        <!-- 搜索趋势 + 关键词排名 -->
+        <el-row :gutter="18">
+            <el-col :span="14">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <span class="chart-title">每日搜索量趋势</span>
+                        <el-radio-group v-model="trendDays" size="mini" style="margin-left:auto;" @change="switchTrendDays">
+                            <el-radio-button :label="7">7天</el-radio-button>
+                            <el-radio-button :label="30">30天</el-radio-button>
+                        </el-radio-group>
+                    </div>
+                    <div class="chart-body"><div id="searchChart" style="height:320px;" v-loading="loading1"></div></div>
+                </div>
+            </el-col>
+            <el-col :span="10">
+                <div class="chart-card">
+                    <div class="chart-header amber"><span class="chart-title">搜索关键词 Top10</span>
+                        <el-radio-group v-model="keywordDays" size="mini" style="margin-left:auto;" @change="switchKeywordDays">
+                            <el-radio-button :label="0">总榜</el-radio-button>
+                            <el-radio-button :label="1">1天</el-radio-button>
+                            <el-radio-button :label="7">7天</el-radio-button>
+                        </el-radio-group>
+                    </div>
+                    <div class="chart-body"><div id="keywordChart" style="height:320px;" v-loading="loading2"></div></div>
+                </div>
+            </el-col>
+        </el-row>
+
+        <!-- 系统信息 + 资源分布 -->
+        <el-row :gutter="18" style="margin-top:18px;">
+            <el-col :span="14">
+                <div class="sys-panel">
+                    <div class="sys-panel-title">系统信息</div>
+                    <div class="sys-row"><span class="sys-key">PHP 版本</span><span class="sys-val">{{sys.php_version}}</span></div>
+                    <div class="sys-row"><span class="sys-key">MySQL 版本</span><span class="sys-val">{{sys.mysql_version}}</span></div>
+                    <div class="sys-row"><span class="sys-key">操作系统</span><span class="sys-val">{{sys.os}}</span></div>
+                    <div class="sys-row"><span class="sys-key">服务器IP</span><span class="sys-val">{{sys.server_ip}}</span></div>
+                    <div class="sys-row"><span class="sys-key">磁盘空间</span><span class="sys-val">{{sys.disk_free}} / {{sys.disk_total}}</span></div>
+                    <div class="sys-row"><span class="sys-key">最大上传</span><span class="sys-val">{{sys.max_upload}}</span></div>
+                    <div class="sys-row"><span class="sys-key">内存限制</span><span class="sys-val">{{sys.memory_limit}}</span></div>
+                    <div class="sys-row"><span class="sys-key">服务器时间</span><span class="sys-val">{{sys.server_time}}</span></div>
+                </div>
+            </el-col>
+            <el-col :span="10">
+                <div class="chart-card">
+                    <div class="chart-header green"><span class="chart-title">资源分类分布</span></div>
+                    <div class="chart-body"><div id="panChart" style="height:300px;" v-loading="loading3"></div></div>
+                </div>
+            </el-col>
+        </el-row>
+    </div>
+
+    {include file="common/footer"/}
+    <script src="/static/admin/js/echarts.min.js"></script>
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    loading1: false, loading2: false, loading3: false,
+                    kpi: { todaySearch: 0, totalSearch: 0, totalSource: 0, todayNewSource: 0 },
+                    trendDays: 7,
+                    keywordDays: 0,
+                    daily: [],
+                    sys: { php_version:'-', mysql_version:'-', os:'-', server_ip:'-', disk_free:'-', disk_total:'-', max_upload:'-', memory_limit:'-', server_time:'-' },
+                    chart1: null, chart2: null, chart3: null
+                };
+            },
+            mounted() {
+                this.loadSearchStats();
+                this.loadKeywords();
+                this.loadSourceStats();
+                this.loadSystemInfo();
+                window.addEventListener('resize', this.handleResize);
+            },
+            beforeDestroy() { window.removeEventListener('resize', this.handleResize); },
+            methods: {
+                switchTrendDays() {
+                    this.loadSearchStats();
+                },
+                loadSearchStats() {
+                    var that = this;
+                    this.loading1 = true;
+                    axios.post('/admin/index/searchStats', Object.assign({days: this.trendDays}, PostBase)).then(function(res){
+                        that.loading1 = false;
+                        if(res.data.code==CODE_SUCCESS){
+                            that.kpi.todaySearch = res.data.data.today;
+                            that.kpi.totalSearch = res.data.data.total;
+                            that.daily = res.data.data.daily;
+                            that.$nextTick(function(){ that.renderSearchChart(); });
+                        }
+                    }).catch(function(){ that.loading1 = false; });
+                },
+                switchKeywordDays() {
+                    this.loadKeywords();
+                },
+                loadKeywords() {
+                    var that = this;
+                    this.loading2 = true;
+                    axios.post('/admin/index/keywordRank', Object.assign({days: this.keywordDays}, PostBase)).then(function(res){
+                        that.loading2 = false;
+                        if(res.data.code==CODE_SUCCESS){
+                            that.$nextTick(function(){ that.renderKeywordChart(res.data.data); });
+                        }
+                    }).catch(function(){ that.loading2 = false; });
+                },
+                loadSourceStats() {
+                    var that = this;
+                    this.loading3 = true;
+                    axios.post('/admin/index/sourceStats', Object.assign({}, PostBase)).then(function(res){
+                        that.loading3 = false;
+                        if(res.data.code==CODE_SUCCESS){
+                            that.kpi.totalSource = res.data.data.total;
+                            that.kpi.todayNewSource = res.data.data.today_new;
+                            that.$nextTick(function(){ that.renderPanChart(res.data.data.distribution); });
+                        }
+                    }).catch(function(){ that.loading3 = false; });
+                },
+                loadSystemInfo() {
+                    var that = this;
+                    axios.post('/admin/index/systemInfo', Object.assign({}, PostBase)).then(function(res){
+                        if(res.data.code==CODE_SUCCESS) that.sys = res.data.data;
+                    }).catch(function(){});
+                },
+                renderSearchChart() {
+                    var dom = document.getElementById('searchChart');
+                    if(!dom) return;
+                    this.chart1 = echarts.init(dom);
+                    var dates = this.daily.map(function(d){return d.date;});
+                    var counts = this.daily.map(function(d){return d.count;});
+                    this.chart1.setOption({
+                        tooltip:{trigger:'axis'},
+                        grid:{left:'3%',right:'4%',bottom:'3%',top:'8%',containLabel:true},
+                        xAxis:{type:'category',data:dates,boundaryGap:false,axisLine:{lineStyle:{color:'#e5e7eb'}},axisLabel:{color:'#9ca3af'}},
+                        yAxis:{type:'value',minInterval:1,splitLine:{lineStyle:{color:'#f3f4f6'}},axisLabel:{color:'#9ca3af'}},
+                        series:[{name:'搜索量',type:'line',data:counts,smooth:true,
+                            areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(99,102,241,.25)'},{offset:1,color:'rgba(99,102,241,0)'}])},
+                            lineStyle:{width:2.5,color:'#6366f1'},itemStyle:{color:'#6366f1'},
+                            label:{show:true,position:'top',color:'#6b7280',fontSize:11}
+                        }]
+                    });
+                },
+                renderKeywordChart(list) {
+                    var dom = document.getElementById('keywordChart');
+                    if(!dom) return;
+                    this.chart2 = echarts.init(dom);
+                    var sorted = list.slice().reverse();
+                    this.chart2.setOption({
+                        tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},
+                        grid:{left:'3%',right:'12%',bottom:'3%',top:'3%',containLabel:true},
+                        xAxis:{type:'value',minInterval:1,axisLabel:{color:'#9ca3af'},splitLine:{lineStyle:{color:'#f3f4f6'}}},
+                        yAxis:{type:'category',data:sorted.map(function(d){return d.keyword||'未知';}),axisLabel:{color:'#6b7280',width:70,overflow:'truncate'}},
+                        series:[{name:'搜索次数',type:'bar',data:sorted.map(function(d){return d.cnt;}),
+                            barWidth:14,itemStyle:{borderRadius:[0,4,4,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#f59e0b'},{offset:1,color:'#fbbf24'}])},
+                            label:{show:true,position:'right',color:'#6b7280',fontSize:11}
+                        }]
+                    });
+                },
+                renderPanChart(data) {
+                    var dom = document.getElementById('panChart');
+                    if(!dom) return;
+                    this.chart3 = echarts.init(dom);
+                    var colors = ['#6366f1','#10b981','#f59e0b','#ec4899','#8b5cf6','#06b6d4','#84cc16','#f97316','#64748b','#a78bfa','#34d399'];
+                    var total = 0;
+                    data.forEach(function(d){total+=d.value;});
+                    this.chart3.setOption({
+                        tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},
+                        legend:{orient:'vertical',right:'5%',top:'center',textStyle:{color:'#6b7280',fontSize:12},itemWidth:10,itemHeight:10,itemGap:10},
+                        color:colors,
+                        series:[{
+                            type:'pie',radius:['45%','70%'],center:['38%','50%'],
+                            avoidLabelOverlap:true,
+                            itemStyle:{borderRadius:6,borderColor:'#fff',borderWidth:2},
+                            label:{show:true,position:'center',formatter:function(){
+                                return '{a|'+total+'}\n{b|总数}';
+                            },rich:{a:{fontSize:24,fontWeight:700,color:'#1e293b',lineHeight:30},b:{fontSize:12,color:'#9ca3af'}}},
+                            emphasis:{label:{show:true,fontSize:14,fontWeight:600},
+                                itemStyle:{shadowBlur:10,shadowOffsetX:0,shadowColor:'rgba(0,0,0,.2)'}},
+                            labelLine:{show:false},
+                            data:data
+                        }]
+                    });
+                },
+                handleResize() {
+                    if(this.chart1) this.chart1.resize();
+                    if(this.chart2) this.chart2.resize();
+                    if(this.chart3) this.chart3.resize();
+                }
+            }
+        });
+    </script>
+</html>

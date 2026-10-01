@@ -1,0 +1,506 @@
+{include file="simple/common/header"}
+<meta name="referrer" content="never">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/index.css">
+    <style>
+        /* 公告弹窗 */
+        .notice-dialog {
+            border-radius: 16px !important;
+            overflow: hidden;
+            background: var(--theme-surface) !important;
+            border: 1px solid var(--theme-border) !important;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2) !important;
+        }
+        .notice-dialog .el-dialog__header { display: none; }
+        .notice-dialog .el-dialog__body { padding: 0; background: var(--theme-surface) !important; }
+        .notice-dialog .el-dialog__footer { padding: 0; background: var(--theme-surface) !important; }
+
+        .notice-dialog-accent {
+            height: 4px;
+            background: var(--theme-primary-gradient);
+        }
+        .notice-dialog-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            color: var(--theme-text-secondary);
+            cursor: pointer;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 1;
+        }
+        .notice-dialog-close:hover {
+            background: var(--theme-card);
+            color: var(--theme-text);
+        }
+        .notice-dialog-content {
+            padding: 28px;
+        }
+        .notice-dialog-eyebrow {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            color: var(--theme-primary);
+            margin-bottom: 16px;
+        }
+        .notice-dialog-image {
+            margin-bottom: 20px;
+        }
+        .notice-dialog-image img {
+            max-width: 100%;
+            display: block;
+            border-radius: 12px;
+            margin: 0 auto;
+        }
+        .notice-dialog-text {
+            white-space: pre-wrap;
+            line-height: 1.75;
+            font-size: 15px;
+            color: var(--theme-text);
+            text-align: center;
+        }
+        .notice-dialog-actions {
+            display: flex;
+            gap: 12px;
+            padding: 16px 28px 22px;
+            justify-content: flex-end;
+            border-top: 1px solid var(--theme-border);
+        }
+        .notice-btn {
+            padding: 9px 22px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-family: inherit;
+        }
+        .notice-btn--ghost {
+            background: transparent;
+            color: var(--theme-text-secondary);
+            border: 1px solid var(--theme-border);
+        }
+        .notice-btn--ghost:hover {
+            color: var(--theme-text);
+            border-color: var(--theme-border-strong);
+        }
+        .notice-btn--primary {
+            background: var(--theme-primary-gradient);
+            color: #fff;
+        }
+        .notice-btn--primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        @media (max-width: 480px) {
+            .notice-dialog { width: 90vw !important; }
+            .notice-dialog-content { padding: 20px; }
+            .notice-dialog-actions { padding: 14px 20px 18px; flex-direction: column-reverse; }
+            .notice-btn { width: 100%; text-align: center; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="headBg" style="background-image: url({$config.home_bg});display:none;"></div>
+    <div id="app" v-cloak>
+        
+        {include file="simple/common/navbar"}
+        <div class="home-container">
+            <!-- 热门搜索列表区域 -->
+            {if condition="$config.home_new == 0"}
+            <div class="latest-section hot-section" id="hotSection">
+                <div class="latest-header">
+                    <div class="latest-title">
+                        <span class="latest-title-icon hot-icon">🔥</span>
+                        热门资源趋势
+                    </div>
+                    <a href="/latest" class="latest-more">
+                        <i class="iconfont icon-gengduo"></i> 查看更多
+                    </a>
+                </div>
+                <div class="latest-list" id="hotList">
+                    <!-- 数据通过 JS 加载 -->
+                </div>
+            </div>
+            {/if}
+
+            <!-- 最近更新列表区域 -->
+            {if condition="$config.home_new == 0"}
+            <div class="latest-section" id="latestSection">
+                <div class="latest-header">
+                    <div class="latest-title">
+                        <span class="latest-title-icon">~</span>
+                        最近补录动态
+                    </div>
+                    <a href="/latest" class="latest-more">
+                        <i class="iconfont icon-gengduo"></i> 查看更多
+                    </a>
+                </div>
+                <div class="latest-list" id="latestList">
+                    <!-- 数据通过 JS 加载 -->
+                </div>
+            </div>
+            {/if}
+
+            <!-- Banner 轮播 -->
+            <div class="home-banner" v-if="bannerList.length"
+                 @touchstart="onBannerTouchStart"
+                 @touchend="onBannerTouchEnd">
+                <div class="home-banner-slide" v-for="(item, i) in bannerList" :key="i" :class="{ active: i === bannerIndex }" :style="{ backgroundImage: 'url(' + item.url + ')' }" @click="bannerClick(item)">
+                    <span class="home-banner-name" v-if="item.name">{{ item.name}}</span>
+                </div>
+                <div class="home-banner-dots" v-if="bannerList.length > 1">
+                    <span v-for="(img, i) in bannerList" :key="'dot'+i" class="home-banner-dot" :class="{ active: i === bannerIndex }" @click="bannerGo(i)"></span>
+                </div>
+            </div>
+
+            <!-- 分类热搜卡片区 -->
+            <div class="hot-category-section">
+                <div class="hot-category-list">
+                    <div class="hot-category-card" v-for="cat in hotCategories" :key="cat.channel">
+                        <div class="hot-category-card-head">
+                            <span class="hot-category-card-title">{{cat.label}}<em>热搜</em></span>
+                            <span class="hot-category-card-count" v-if="(hotCategoryData[cat.channel] || []).length">{{(hotCategoryData[cat.channel] || []).length}}条</span>
+                        </div>
+                        <div class="hot-category-grid" v-if="(hotCategoryData[cat.channel] || []).length">
+                            <div class="hot-category-item"
+                                 v-for="(item, idx) in hotCategoryData[cat.channel]"
+                                 :key="idx"
+                                 @click="showHotCategoryResource(item, cat)">
+                                <div class="hot-category-cover">
+                                    <span class="hot-category-rank" :class="{'top': idx < 3}">{{idx + 1}}</span>
+                                    <img :src="item.src || defaultCover" :alt="item.title" loading="lazy" @error="onCoverError">
+                                    <div class="hot-category-overlay">
+                                        <div v-if="item.description" class="hot-category-desc">{{item.description}}</div>
+                                        <span v-if="item.times">更新：{{item.times}}</span>
+                                    </div>
+                                </div>
+                                <div class="hot-category-name">{{item.title}}</div>
+                            </div>
+                        </div>
+                        <div class="hot-category-empty" v-else>加载中...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 首页公告弹窗 -->
+        <el-dialog v-model="noticeVisible" class="notice-dialog" width="400px" :show-close="false" :close-on-click-modal="true" align-center append-to-body>
+            <div class="notice-dialog-accent"></div>
+            <button class="notice-dialog-close" @click="noticeVisible = false" aria-label="关闭">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="notice-dialog-content">
+                <div class="notice-dialog-eyebrow">公告</div>
+                <div v-if="noticeImage" class="notice-dialog-image">
+                    <img :src="noticeImage" alt="公告图片" />
+                </div>
+                <div v-if="noticeText" class="notice-dialog-text">{{ noticeText }}</div>
+            </div>
+            <template #footer>
+                <div class="notice-dialog-actions">
+                    <button class="notice-btn notice-btn--ghost" @click="noticeVisible = false">我知道了</button>
+                    <button class="notice-btn notice-btn--primary" @click="dismissNotice">7日内不再显示</button>
+                </div>
+            </template>
+        </el-dialog>
+
+        {include file="simple/common/foot"}
+    </div>
+    {include file="simple/common/scripts"}
+    <script type="text/javascript" charset="utf-8">
+        app.rankList = JSON.parse('<?php echo json_encode($rankList, JSON_UNESCAPED_UNICODE); ?>');
+
+        // HTML 转义，防止简介中的特殊字符破坏模板
+        window.escapeHtml = function(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+        
+        // Tab 切换功能 - 新结构
+        var firstTab = document.querySelector('.tab-item');
+        app.currentCategory = firstTab ? firstTab.dataset.type : '';
+        // 判断是否为无图模式（本地资源榜单）
+        app.rankingType = document.querySelector('.ranking-section')?.dataset.rankingType || '0';
+        app.isLocalRanking = app.rankingType === '0';
+        // 从后台配置读取榜单名称
+        var rankNamesStr = document.querySelector('.ranking-section')?.dataset.rankNames || '';
+        app.rankTypes = rankNamesStr ? rankNamesStr.split(',') : ['热搜榜', '推荐榜', '好评榜'];
+
+        // 动态设置榜单卡片标题
+        document.querySelectorAll('.ranking-card-name[data-rank-idx]').forEach(function(el) {
+            var idx = parseInt(el.dataset.rankIdx);
+            if (app.rankTypes[idx]) {
+                el.textContent = app.rankTypes[idx];
+            }
+        });
+        
+        // 切换分类 Tab
+        app.switchTab = function(category) {
+            app.currentCategory = category;
+            
+            // 更新 Tab 样式
+            document.querySelectorAll('.tab-item').forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('data-type') === category) {
+                    item.classList.add('active');
+                }
+            });
+            
+            // 加载三个榜单的数据
+            app.loadAllRankings(category);
+        };
+        
+        // 加载所有榜单数据
+        app.loadAllRankings = function(category) {
+            app.rankTypes.forEach(rankType => {
+                app.loadRankingList(category, rankType);
+            });
+        };
+        
+        // 加载单个榜单数据
+        app.loadRankingList = function(category, rankType) {
+            var rankIndex = app.rankTypes.indexOf(rankType);
+            var containerId = rankIndex === 0 ? 'ranking-hot' : rankIndex === 1 ? 'ranking-new' : 'ranking-good';
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            // 生成缓存key
+            const cacheKey = (app.isLocalRanking ? 'local_ranking_' : 'ranking_') + category + '_' + rankType;
+            const cacheTime = 60 * 60 * 1000; // 缓存1小时
+            
+            // 尝试读取本地缓存
+            try {
+                const cachedData = localStorage.getItem(cacheKey);
+                const cachedTimestamp = localStorage.getItem(cacheKey + '_time');
+                if (cachedData && cachedTimestamp) {
+                    const now = Date.now();
+                    if (now - parseInt(cachedTimestamp) < cacheTime) {
+                        // 缓存有效，直接渲染
+                        app.renderRankingList(container, JSON.parse(cachedData), category, rankType);
+                        return;
+                    }
+                }
+            } catch(e) {
+                // localStorage 不可用，继续请求
+            }
+            
+            // 显示加载状态
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">加载中...</div>';
+            
+            if (app.isLocalRanking) {
+                // 无图模式：从本地资源获取榜单数据
+                axios.get('/api/tool/ranking', {
+                    params: {
+                        source: 'local',
+                        channel: category,
+                        rank_type: rankType,
+                        page_size: 9
+                    }
+                }).then(res => {
+                    if (res.data && res.data.data) {
+                        const data = res.data.data.data || res.data.data;
+                        try {
+                            localStorage.setItem(cacheKey, JSON.stringify(data));
+                            localStorage.setItem(cacheKey + '_time', Date.now().toString());
+                        } catch(e) {}
+                        app.renderRankingList(container, data, category, rankType);
+                    } else {
+                        container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">暂无数据</div>';
+                    }
+                }).catch(() => {
+                    container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">加载失败</div>';
+                });
+            } else {
+                // 有图模式：从第三方API获取榜单数据
+                axios.get('/api/tool/ranking', {
+                    params: {
+                        channel: category,
+                        rank_type: rankType
+                    }
+                }).then(res => {
+                    if (res.data && res.data.data) {
+                        // 保存到本地缓存
+                        try {
+                            localStorage.setItem(cacheKey, JSON.stringify(res.data.data));
+                            localStorage.setItem(cacheKey + '_time', Date.now().toString());
+                        } catch(e) {
+                            // localStorage 不可用，忽略
+                        }
+                        app.renderRankingList(container, res.data.data, category, rankType);
+                    } else {
+                        container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">暂无数据</div>';
+                    }
+                }).catch(() => {
+                    container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">加载失败</div>';
+                });
+            }
+        };
+        
+        // 图片缓存对象
+        app.imageCache = {};
+        
+        // 预加载图片并缓存
+        app.preloadImage = function(src) {
+            if (!src || app.imageCache[src]) return;
+            const img = new Image();
+            img.src = src;
+            app.imageCache[src] = true;
+        };
+        
+        // 渲染榜单列表 - 显示9个
+        app.renderRankingList = function(container, data, category, rankType) {
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:20px;color:#999;font-size:12px;">暂无数据</div>';
+                return;
+            }
+
+            // 存储榜单数据到全局
+            if (!window.rankingDataMap) window.rankingDataMap = {};
+            window.rankingDataMap[rankType] = data;
+
+            var rankIndex = app.rankTypes.indexOf(rankType);
+
+            // 预加载所有图片
+            data.slice(0, 9).forEach(item => {
+                if (item.src) {
+                    app.preloadImage(item.src);
+                }
+            });
+            
+            // 判断是否为手机端（与CSS媒体查询保持一致）
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+            
+            if (isMobile) {
+                // 手机端：卡片网格形式
+                app.renderRankingGrid(container, data, category, rankType);
+            } else {
+                // 桌面端：列表形式
+                let html = '';
+                data.slice(0, 9).forEach((item, index) => {
+                    const rank = index + 1;
+                    const topClass = rank <= 3 ? 'top' + rank : '';
+                    const cover = item.src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 64'%3E%3Crect fill='%23e8e8e8' width='48' height='64'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ccc' font-size='10'%3ENo Img%3C/text%3E%3C/svg%3E";
+                    var scoreLabel = rankIndex === 0 ? (item.hot_score || '0') : 
+                                     rankIndex === 1 ? '荐' : (item.score_avg || '0.0');
+                    const year = item.year || '';
+                    html += `
+                        <div class="ranking-item" onclick="showRankingResource(${index}, '${rankType}')" style="cursor: pointer;">
+                            <span class="ranking-rank ${topClass}">${rank}</span>
+                            <div class="ranking-cover">
+                                <img src="${cover}" alt="${item.title}" loading="lazy" decoding="async" />
+                            </div>
+                            <div class="ranking-info">
+                                <div class="ranking-item-title">${item.title}</div>
+                                <div class="ranking-meta">
+                                    <span>${category}</span>
+                                </div>
+                            </div>
+                            <span class="ranking-score">${scoreLabel}</span>
+                            <div class="ranking-tooltip">
+                                ${item.description ? '<div class="ranking-tooltip-desc">' + escapeHtml(item.description) + '</div>' : ''}
+                                ${item.times ? '<span class="ranking-tooltip-time">更新：' + escapeHtml(item.times) + '</span>' : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            }
+        };
+        
+        // 手机端：渲染榜单卡片网格 - 每行3个
+        app.renderRankingGrid = function(container, data, category, rankType) {
+            let html = '<div class="ranking-grid-mobile">';
+            data.slice(0, 9).forEach((item, index) => {
+                const rank = index + 1;
+                const topClass = rank <= 3 ? 'top' + rank : '';
+                const cover = item.src || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 64'%3E%3Crect fill='%23e8e8e8' width='48' height='64'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ccc' font-size='10'%3ENo Img%3C/text%3E%3C/svg%3E";
+                html += `
+                    <div class="ranking-card-mobile" onclick="window.searchByKeyword('${item.title.replace(/'/g, "\\'")}')" style="cursor: pointer;">
+                        <div class="ranking-card-cover">
+                            <span class="ranking-card-rank ${topClass}">TOP${rank}</span>
+                            <img src="${cover}" alt="${item.title}" loading="lazy" decoding="async" />
+                        </div>
+                        <div class="ranking-card-title">${item.title}</div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        };
+        
+        // 刷新所有榜单
+        app.refreshAllRankings = function() {
+            const btn = document.querySelector('.tab-refresh');
+            if (btn) {
+                btn.style.opacity = '0.5';
+                btn.style.pointerEvents = 'none';
+            }
+            
+            // 清除榜单缓存
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('ranking') || key.includes('local_ranking'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+            
+            app.loadAllRankings(app.currentCategory);
+            
+            setTimeout(() => {
+                if (btn) {
+                    btn.style.opacity = '1';
+                    btn.style.pointerEvents = 'auto';
+                }
+            }, 1000);
+        };
+        
+        // 查看更多
+        app.loadRankingData = function(rankType) {
+            // 将内部 rank_type 映射回榜单名称
+            var internalMap = { '最热': 0, '推荐': 1, '好评': 2 };
+            var idx = internalMap[rankType];
+            if (idx !== undefined && app.rankTypes[idx]) {
+                return app.rankTypes[idx];
+            }
+            return rankType;
+        };
+        
+        // 绑定 Tab 点击事件
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.tab-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    app.switchTab(this.getAttribute('data-type'));
+                });
+            });
+            
+            // 初始加载默认分类的数据
+            app.loadAllRankings(app.currentCategory);
+        });
+        
+        // 监听窗口大小变化，切换设备时重新渲染
+        let lastIsMobile = window.matchMedia('(max-width: 768px)').matches;
+        window.addEventListener('resize', function() {
+            const currentIsMobile = window.matchMedia('(max-width: 768px)').matches;
+            if (currentIsMobile !== lastIsMobile) {
+                lastIsMobile = currentIsMobile;
+                // 重新加载当前分类的榜单
+                app.loadAllRankings(app.currentCategory);
+            }
+        });
+    </script>
+</body>
+
+</html>

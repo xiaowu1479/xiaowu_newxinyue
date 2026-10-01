@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>服务器管理</title>
+    <style>
+    .server-panel {
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        padding: 24px 28px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 32px);
+    }
+    .server-panel .el-table {
+        border-radius: 4px;
+        overflow: hidden;
+        flex: 1;
+    }
+    .server-panel .el-table .el-table__body-wrapper {
+        overflow-y: auto;
+        max-height: calc(100vh - 140px);
+    }
+    .server-panel .el-table th.el-table__cell {
+        background: #f5f7fa !important;
+        color: #909399;
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .server-panel .el-table td.el-table__cell {
+        color: #606266;
+        font-size: 13px;
+    }
+    .server-domain {
+        color: #409eff;
+        text-decoration: none;
+    }
+    .server-domain:hover {
+        text-decoration: underline;
+    }
+    </style>
+    {include file="common/header"/}
+    <div class="server-panel">
+    <el-form :inline="true" style="text-align: right;">
+        <el-form-item style="margin-right: 0;">
+            <el-button icon="el-icon-refresh" size="small" @click="getList" type="text">刷新</el-button>
+            <el-button icon="el-icon-delete" size="small" @click="clearAll" type="danger" plain style="border-radius: 8px;">清空全部</el-button>
+        </el-form-item>
+    </el-form>
+    <el-table :data="dataList" v-loading="loading">
+        <el-table-column prop="server_id" label="ID" width="60"></el-table-column>
+        <el-table-column label="域名" min-width="200">
+            <template slot-scope="scope">
+                <a v-if="scope.row.server_domain" :href="'http://'+scope.row.server_domain" target="_blank" class="server-domain">{{scope.row.server_domain}}</a>
+                <span v-else style="color:#c0c4cc;">-</span>
+            </template>
+        </el-table-column>
+        <el-table-column prop="server_ip" label="IP地址" width="150">
+            <template slot-scope="scope">
+                <span v-if="scope.row.server_ip">{{scope.row.server_ip}}</span>
+                <span v-else style="color:#c0c4cc;">-</span>
+            </template>
+        </el-table-column>
+        <el-table-column label="代码版本" width="120">
+            <template slot-scope="scope">
+                <el-tag size="mini" v-if="scope.row.server_version">{{scope.row.server_version}}</el-tag>
+                <span v-else style="color:#c0c4cc;">-</span>
+            </template>
+        </el-table-column>
+        <el-table-column label="SQL版本" width="120">
+            <template slot-scope="scope">
+                <el-tag size="mini" type="warning" v-if="scope.row.server_sql_version">{{scope.row.server_sql_version}}</el-tag>
+                <span v-else style="color:#c0c4cc;">-</span>
+            </template>
+        </el-table-column>
+        <el-table-column label="最后检查时间" width="170">
+            <template slot-scope="scope">{{formatTime(scope.row.server_last_check)}}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="80" align="center">
+            <template slot-scope="scope">
+                <el-tag :type="scope.row.server_status==0?'success':'danger'" size="mini">
+                    {{scope.row.server_status==0?'正常':'禁用'}}
+                </el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column label="操作" width="140">
+            <template slot-scope="scope">
+                <el-link type="primary" @click="toggleStatus(scope.row)" :underline="false" style="font-size:13px;">
+                    {{scope.row.server_status==0?'禁用':'启用'}}
+                </el-link>&nbsp;&nbsp;
+                <el-link type="danger" @click="clickDelete(scope.row)" :underline="false" style="font-size:13px;">删除</el-link>
+            </template>
+        </el-table-column>
+    </el-table>
+    <div v-if="!loading && !dataList.length" style="color:#999;text-align:center;padding:40px 0;">暂无服务器记录</div>
+    </div>
+
+    {include file="common/footer"/}
+    <script>
+        var app = new Vue({
+            el: '#app',
+            data() {
+                this.getList();
+                return {
+                    loading: true,
+                    dataList: [],
+                }
+            },
+            methods: {
+                getList() {
+                    var that = this;
+                    that.loading = true;
+                    axios.post('/admin/server/getList', Object.assign({}, PostBase))
+                        .then(function (response) {
+                            that.loading = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.dataList = response.data.data;
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function () {
+                            that.loading = false;
+                            that.$message.error('服务器内部错误');
+                        });
+                },
+                toggleStatus(row) {
+                    var that = this;
+                    axios.post('/admin/server/setStatus', Object.assign({}, PostBase, {
+                        server_id: row.server_id
+                    }))
+                        .then(function (response) {
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.$message.success(response.data.message);
+                                that.getList();
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function () {
+                            that.$message.error('服务器内部错误');
+                        });
+                },
+                clickDelete(row) {
+                    var that = this;
+                    this.$confirm('确认删除该服务器记录？', '删除提醒', {
+                        confirmButtonText: '删除',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(() => {
+                        axios.post('/admin/server/delete', Object.assign({}, PostBase, {
+                            server_id: row.server_id
+                        }))
+                            .then(function (response) {
+                                if (response.data.code == CODE_SUCCESS) {
+                                    that.$message.success(response.data.message);
+                                    that.getList();
+                                } else {
+                                    that.$message.error(response.data.message);
+                                }
+                            })
+                            .catch(function () {
+                                that.$message.error('服务器内部错误');
+                            });
+                    }).catch(() => {});
+                },
+                clearAll() {
+                    var that = this;
+                    this.$confirm('确认清空所有服务器记录？此操作不可恢复！', '清空确认', {
+                        confirmButtonText: '确认清空',
+                        cancelButtonText: '取消',
+                        type: 'error'
+                    }).then(() => {
+                        axios.post('/admin/server/clearAll', Object.assign({}, PostBase))
+                            .then(function (response) {
+                                if (response.data.code == CODE_SUCCESS) {
+                                    that.$message.success(response.data.message);
+                                    that.getList();
+                                } else {
+                                    that.$message.error(response.data.message);
+                                }
+                            })
+                            .catch(function () {
+                                that.$message.error('服务器内部错误');
+                            });
+                    }).catch(() => {});
+                },
+                formatTime(ts) {
+                    if (!ts) return '-';
+                    var d = new Date(ts * 1000);
+                    return d.getFullYear() + '-' + this.pad(d.getMonth() + 1) + '-' + this.pad(d.getDate()) + ' ' +
+                        this.pad(d.getHours()) + ':' + this.pad(d.getMinutes()) + ':' + this.pad(d.getSeconds());
+                },
+                pad(n) { return n < 10 ? '0' + n : n; }
+            }
+        })
+    </script>
+</html>

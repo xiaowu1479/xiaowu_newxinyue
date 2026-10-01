@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Banner管理</title>
+    <style>
+    .banner-panel {
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        padding: 24px 28px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 32px);
+    }
+    .banner-panel .el-form { flex-shrink: 0; margin-bottom: 0 !important; }
+    .banner-panel .el-form .el-form-item { margin-bottom: 0 !important; }
+    .banner-panel .el-table {
+        border-radius: 4px;
+        overflow: hidden;
+        flex: 1;
+    }
+    .banner-panel .el-table .el-table__body-wrapper {
+        overflow-y: auto;
+        max-height: calc(100vh - 160px);
+    }
+    .banner-panel .el-table th.el-table__cell {
+        background: #f5f7fa !important;
+        color: #909399;
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .banner-panel .el-table td.el-table__cell {
+        color: #606266;
+        font-size: 13px;
+    }
+    .banner-thumb {
+        width: 120px;
+        height: 48px;
+        object-fit: cover;
+        border-radius: 4px;
+        border: 1px solid #ebeef5;
+    }
+    </style>
+    {include file="common/header"/}
+    <div class="banner-panel">
+    <el-form :inline="true" style="text-align: right;">
+        <el-form-item style="margin-right: 0;">
+            <el-button icon="el-icon-plus" size="small" @click="clickAdd" type="primary" style="border-radius: 8px;">添加Banner</el-button>
+        </el-form-item>
+    </el-form>
+    <el-table :data="dataList" v-loading="loading">
+        <el-table-column prop="banner_id" label="ID" width="60">
+        </el-table-column>
+        <el-table-column label="图片" width="150">
+            <template slot-scope="scope">
+                <img :src="scope.row.banner_image" class="banner-thumb" v-if="scope.row.banner_image" />
+            </template>
+        </el-table-column>
+        <el-table-column prop="banner_title" label="名称">
+        </el-table-column>
+        <el-table-column label="跳转链接" min-width="200">
+            <template slot-scope="scope">
+                <el-link :href="scope.row.banner_link" target="_blank" type="primary" :underline="false" v-if="scope.row.banner_link">{{scope.row.banner_link}}</el-link>
+                <span v-else style="color: #c0c4cc;">无(点击用名称搜索)</span>
+            </template>
+        </el-table-column>
+        <el-table-column prop="banner_sort" label="排序" width="80" align="center">
+        </el-table-column>
+        <el-table-column label="状态" width="100" align="center">
+            <template slot-scope="scope">
+                <el-switch v-model="scope.row.banner_status==1?false:true"
+                    @change="clickStatus(scope.row.banner_id,'banner_status',scope.row.banner_status)">
+                </el-switch>
+            </template>
+        </el-table-column>
+        <el-table-column label="操作" width="160">
+            <template slot-scope="scope">
+                <el-link type="primary" @click="clickEdit(scope.row)"
+                    :underline="false">编辑</el-link>&nbsp;&nbsp;&nbsp;&nbsp;
+                <el-link type="danger" @click="clickDelete(scope.row)" :underline="false">删除</el-link>
+            </template>
+        </el-table-column>
+    </el-table>
+    </div>
+
+
+    <!-- 添加框 -->
+    <el-dialog title="添加Banner" :visible.sync="dialogFormAdd" width="560px" :modal-append-to-body='false' append-to-body
+        :close-on-click-modal='false'>
+        <el-form :model="formAdd" :rules="rules" ref="formAdd" label-width="100px">
+            <el-form-item prop="banner_image" label="图片">
+                <Single v-model="formAdd.banner_image"></Single>
+            </el-form-item>
+            <el-form-item prop="banner_title" label="名称">
+                <el-input size="medium" autocomplete="off" v-model="formAdd.banner_title" placeholder="点击banner时用此名称搜索"></el-input>
+            </el-form-item>
+            <el-form-item prop="banner_link" label="跳转链接">
+                <el-input size="medium" autocomplete="off" v-model="formAdd.banner_link" placeholder="为空则点击用名称搜索"></el-input>
+            </el-form-item>
+            <el-form-item prop="banner_sort" label="排序">
+                <el-input-number v-model="formAdd.banner_sort" :min="0" :max="999" size="medium" style="width: 120px;"
+                    controls-position="right" />
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button type="primary" @click="postAdd()">确认添加</el-button>
+        </div>
+    </el-dialog>
+    <!-- 修改框 -->
+    <el-dialog title="修改Banner" :visible.sync="dialogFormEdit" width="560px" :modal-append-to-body='false'
+        append-to-body :close-on-click-modal='false'>
+        <el-form :model="formEdit" :rules="rules" ref="formEdit" label-width="100px">
+            <el-form-item prop="banner_image" label="图片">
+                <Single v-model="formEdit.banner_image"></Single>
+            </el-form-item>
+            <el-form-item prop="banner_title" label="名称">
+                <el-input size="medium" autocomplete="off" v-model="formEdit.banner_title" placeholder="点击banner时用此名称搜索"></el-input>
+            </el-form-item>
+            <el-form-item prop="banner_link" label="跳转链接">
+                <el-input size="medium" autocomplete="off" v-model="formEdit.banner_link" placeholder="为空则点击用名称搜索"></el-input>
+            </el-form-item>
+            <el-form-item prop="banner_sort" label="排序">
+                <el-input-number v-model="formEdit.banner_sort" :min="0" :max="999" size="medium" style="width: 120px;"
+                    controls-position="right" />
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button type="primary" @click="postEdit()">确认修改</el-button>
+        </div>
+    </el-dialog>
+
+    {include file="common/footer"/}
+    <script>
+        var app = new Vue({
+            el: '#app',
+            data() {
+                this.getList();
+                return {
+                    dialogFormAdd: false,
+                    dialogFormEdit: false,
+                    loading: true,
+                    dataList: [],
+                    formAdd: {
+                        banner_image: '',
+                        banner_title: '',
+                        banner_link: '',
+                        banner_sort: 0,
+                        banner_status: 0
+                    },
+                    formEdit: {},
+                    rules: {
+                        banner_title: [{ required: true, message: '请输入名称', trigger: 'blur' }],
+                        banner_image: [{ required: true, message: '请上传图片', trigger: 'change' }],
+                    },
+                }
+            },
+            methods: {
+                postEdit() {
+                    var that = this;
+                    that.$refs["formEdit"].validate((valid) => {
+                        if (valid) {
+                            axios.post('/admin/banner/update', Object.assign({}, PostBase, that.formEdit))
+                                .then(function (response) {
+                                    that.getList();
+                                    if (response.data.code == CODE_SUCCESS) {
+                                        that.$message({
+                                            message: response.data.message,
+                                            type: 'success'
+                                        });
+                                        that.dialogFormEdit = false;
+                                    } else {
+                                        that.$message.error(response.data.message);
+                                    }
+                                })
+                                .catch(function (error) {
+                                    that.$message.error('服务器内部错误');
+                                    console.log(error);
+                                });
+                        }
+                    });
+                },
+                postAdd() {
+                    var that = this;
+                    that.$refs['formAdd'].validate((valid) => {
+                        if (valid) {
+                            axios.post('/admin/banner/add', Object.assign({}, PostBase, that.formAdd))
+                                .then(function (response) {
+                                    that.getList();
+                                    if (response.data.code == CODE_SUCCESS) {
+                                        that.$message({
+                                            message: response.data.message,
+                                            type: 'success'
+                                        });
+                                        that.dialogFormAdd = false;
+                                    } else {
+                                        that.$message.error(response.data.message);
+                                    }
+                                })
+                                .catch(function (error) {
+                                    that.$message.error('服务器内部错误');
+                                    console.log(error);
+                                });
+                        }
+                    });
+                },
+                clickAdd() {
+                    var that = this;
+                    that.formAdd = {
+                        banner_image: '',
+                        banner_title: '',
+                        banner_link: '',
+                        banner_sort: 0,
+                        banner_status: 0
+                    };
+                    that.dialogFormAdd = true;
+                },
+                clickDelete(row) {
+                    var that = this;
+                    this.$confirm('即将删除这个Banner, 是否确认?', '删除提醒', {
+                        confirmButtonText: '删除',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(() => {
+                        axios.post('/admin/banner/delete', Object.assign({}, PostBase, {
+                            banner_id: row.banner_id
+                        }))
+                            .then(function (response) {
+                                that.getList();
+                                if (response.data.code == CODE_SUCCESS) {
+                                    that.$message({
+                                        message: response.data.message,
+                                        type: 'success'
+                                    });
+                                } else {
+                                    that.$message.error(response.data.message);
+                                }
+                            })
+                            .catch(function (error) {
+                                that.$message.error('服务器内部错误');
+                                console.log(error);
+                            });
+                    }).catch(() => {
+                    });
+                },
+                clickStatus(banner_id, type, status) {
+                    var that = this;
+                    axios.post('/admin/banner/setStatus', Object.assign({}, PostBase, {
+                        banner_id: banner_id,
+                        type: type,
+                        status: status
+                    }))
+                        .then(function (response) {
+                            that.getList();
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.$message({
+                                    message: response.data.message,
+                                    type: 'success'
+                                });
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                },
+                clickEdit(row) {
+                    var that = this;
+                    axios.post('/admin/banner/detail', Object.assign({}, PostBase, {
+                        banner_id: row.banner_id
+                    }))
+                        .then(function (response) {
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.formEdit = response.data.data;
+                                that.formEdit.banner_image = that.formEdit.banner_image || '';
+                                that.dialogFormEdit = true;
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                },
+                getList() {
+                    var that = this;
+                    that.loading = true;
+                    axios.post('/admin/banner/getList', Object.assign({}, PostBase))
+                        .then(function (response) {
+                            that.loading = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.dataList = response.data.data;
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.loading = false;
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                },
+            }
+        })
+    </script>
+
+
+</html>
