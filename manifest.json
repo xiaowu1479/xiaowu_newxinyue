@@ -567,7 +567,7 @@
         "extend/phpqrcode/tools/merged_header.php": "3fc51eef6239691f523be743fde28470",
         "extend/quarkPlugin/QuarkPlugin.php": "8d59547c84c49902a1d3e0b206bdfd4e",
         "extend/util/Time.php": "d51ec1b3085dba8ca2dc3e89956a3ec9",
-        "extend/util/Upgrade.php": "df8c7758d2bac1b4989e6cc8aa23a958",
+        "extend/util/Upgrade.php": "516423819a102a6990c8a28ebdbac031",
         "public/static/admin/UEditor/config.json": "300ec336829ff75dc9e2e7b92dec373a",
         "public/static/admin/UEditor/dialogs/anchor/anchor.html": "f76251acf9a314912f04f1623b902ffd",
         "public/static/admin/UEditor/dialogs/attachment/attachment.css": "18637ff2025925f1c8efcafcffc341a6",

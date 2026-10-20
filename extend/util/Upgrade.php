@@ -24,6 +24,8 @@ class Upgrade
         '#\.upgrade_tmp/#i',
         '#pancheck/cache/#i',
         '#access_token.*\.json$#i',
+        '#_token\.json$#i',
+        '#_(auth|device)\.json$#i',
         '#\.log$#i',
     ];
     // 项目根目录(带末尾分隔符)
