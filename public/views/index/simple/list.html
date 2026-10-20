@@ -98,11 +98,9 @@
                                 </span>
                             </div>
                             <div class="btns">
-                                {if condition="$vo.is_time != 2"}
                                 <div class="btn"
                                     @click.stop="copyText($event,'{$vo.title|trim}','{$vo.url}','{$vo.code}')"><i
                                         class="iconfont icon-fenxiang1"></i>复制分享</div>
-                                {/if}
                                 <a href="/d/{$vo.id}.html" class="btn"><i class="iconfont icon-fangwen"></i>查看详情</a>
                                 {if condition="$vo.is_type == 9"}
                                 <!-- 磁力链接使用迅雷下载 -->
@@ -233,36 +231,12 @@
             jsonData = jsonData.replace(/[\x00-\x1F\x7F]/g, '');
             var list = JSON.parse(jsonData);
             const item = list[index];
-            var rawUrl = item.url || '';
-            if (rawUrl.startsWith('http') || rawUrl.startsWith('magnet:')) {
-                // 永久/临时资源：直接显示（保持不变）
-                if (app.pc_type == 1) {
-                    safeJump(item.url);
-                } else {
-                    item.showUrl = item.url;
-                    app.dialogUrl = true;
-                    showUrlFun(item);
-                }
+            if (app.pc_type == 1) {
+                safeJump(item.url);
             } else {
-                // 外部资源(is_time=2)：加密链接，转存后显示
+                item.showUrl = item.url
                 app.dialogUrl = true;
-                app.dialogLoading = true;
-                axios.post('/api/other/save_url', {
-                    url: encodeURIComponent(rawUrl),
-                    title: item.title
-                }).then(res => {
-                    if (res.data.code == 200) {
-                        item.url = res.data.data.url;
-                        item.showUrl = res.data.data.url;
-                    } else {
-                        item.showUrl = '';
-                        item.message = res.data.message;
-                    }
-                    app.dialogLoading = false;
-                    showUrlFun(item);
-                }).catch(() => {
-                    app.dialogLoading = false;
-                });
+                showUrlFun(item);
             }
         }
 
@@ -387,9 +361,6 @@
         
         // 逐条检测本地搜索结果的链接
         async function batchCheckLinks() {
-            // 后台「检测资源」开关关闭时不进行检测
-            if (!window.__linkCheckEnabled) return;
-
             // 如果正在检测，先停止之前的
             if (isCheckingLinks) {
                 console.log('本地搜索检测正在进行中，先停止之前的检测...');
@@ -452,9 +423,6 @@
         
         // 逐条检测全网搜索结果的链接
         async function batchCheckLinksVue() {
-            // 后台「检测资源」开关关闭时不进行检测
-            if (!window.__linkCheckEnabled) return;
-
             // 如果正在检测，先停止之前的
             if (isCheckingLinksVue) {
                 console.log('全网搜索检测正在进行中，先停止之前的检测...');

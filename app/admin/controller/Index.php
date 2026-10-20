@@ -70,19 +70,10 @@ class Index extends QfShop
         if ($error) {
             return $error;
         }
-        // 时间范围：0=总榜，1=最近1天，7=最近7天
-        $days = intval(input('days', 0));
-        if (!in_array($days, [0, 1, 7], true)) {
-            $days = 0;
-        }
-        $query = Db::name('feedback')
+        $list = Db::name('feedback')
             ->fieldRaw("TRIM(SUBSTRING(content, LOCATE(']', content) + 1)) as keyword, COUNT(*) as cnt")
-            ->where('content', '<>', '');
-        if ($days > 0) {
-            $startTime = strtotime(date('Y-m-d 00:00:00', strtotime('-' . ($days - 1) . ' days')));
-            $query = $query->where('create_time', '>=', $startTime);
-        }
-        $list = $query->group('keyword')
+            ->where('content', '<>', '')
+            ->group('keyword')
             ->order('cnt', 'desc')
             ->limit(10)
             ->select()

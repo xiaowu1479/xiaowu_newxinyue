@@ -44,13 +44,7 @@ class Feedback extends QfShop
         if ($panType !== '') {
             $panName = config('pan_types')[$panType]['name'] ?? '';
             if ($panName) {
-                // 支持单网盘 [夸克] 与多网盘 [夸克,百度] 格式
-                $map[] = [function ($query) use ($panName) {
-                    $query->where('content', 'like', '[' . $panName . ']%')
-                          ->whereOr('content', 'like', '%[' . $panName . ',%')
-                          ->whereOr('content', 'like', '%,' . $panName . ',%')
-                          ->whereOr('content', 'like', '%,' . $panName . ']%');
-                }];
+                $map[] = ['content', 'like', '[' . $panName . ']%'];
             }
         }
         //从请求中获取排序方式
@@ -99,11 +93,7 @@ class Feedback extends QfShop
         // 闭包筛选(避免查询累积)
         $filterFn = function ($query) use ($panName) {
             if ($panName) {
-                // 支持单网盘 [夸克] 与多网盘 [夸克,百度] 格式
-                $query->where('content', 'like', '[' . $panName . ']%')
-                      ->whereOr('content', 'like', '%[' . $panName . ',%')
-                      ->whereOr('content', 'like', '%,' . $panName . ',%')
-                      ->whereOr('content', 'like', '%,' . $panName . ']%');
+                $query->where('content', 'like', '[' . $panName . ']%');
             }
         };
 
@@ -193,32 +183,6 @@ class Feedback extends QfShop
         $this->model->where('id', '>', 0)->delete();
 
         return jok('清空成功');
-    }
-
-    /**
-     * 删除搜索记录（支持批量，逗号分隔）
-     *
-     * @return void
-     */
-    public function delete()
-    {
-        //校验Access与RBAC
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-        $ids = input('id', '');
-        if ($ids === '') {
-            return jerr("id必须填写", 400);
-        }
-        $list = array_filter(explode(',', $ids), function ($v) {
-            return is_numeric($v) && $v > 0;
-        });
-        if (empty($list)) {
-            return jerr("无效的ID", 400);
-        }
-        $this->model->whereIn('id', $list)->delete();
-        return jok('删除成功');
     }
 
     /**

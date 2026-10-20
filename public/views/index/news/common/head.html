@@ -21,6 +21,7 @@
             <a href="/" class="nav-item active">搜索</a>
             <a href="/ranking" class="nav-item">热播榜</a>
             <a href="/latest" class="nav-item">最近更新</a>
+            {php}$__navMenuItems = ',' . ($config['nav_menu_items'] ?? '') . ','; if (strpos($__navMenuItems, ',novel,') !== false) { $__showNovel = true; } else { $__showNovel = false; } if ($__showNovel) { echo '<a href="/novel" class="nav-item nav-item-novel" style="color:#e8a547;font-weight:600;">小说</a>'; } {/php}
             <div class="nav-item" @click="layerVisible = true">提交需求</div>
             <div class="nav-item" @click="layerVisible = true">提交资源</div>
         </div>

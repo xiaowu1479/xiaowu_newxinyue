@@ -1,0 +1,461 @@
+{include file="simple/common/header"}
+<meta name="referrer" content="never">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/index.css">
+    <style>
+    .bn-head {
+        background: var(--theme-card-gradient);
+        border: 1px solid var(--theme-border);
+        border-radius: 18px;
+        padding: 24px 26px 20px;
+        margin: 8px 0 16px;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+    }
+    .bn-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--theme-text);
+        margin-bottom: 6px;
+    }
+    .bn-title .icon-book {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #e8a547, #f6c66a);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #1a1a1a;
+        font-size: 16px;
+    }
+    .bn-tip {
+        font-size: 13px;
+        color: var(--theme-text-secondary);
+    }
+    .bn-filter {
+        background: var(--theme-surface);
+        border: 1px solid var(--theme-border);
+        border-radius: 16px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .bn-filter-row--split {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .bn-category-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .bn-category-list button {
+        background: transparent;
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-secondary);
+        border-radius: 999px;
+        padding: 5px 13px;
+        font-size: 12.5px;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+    .bn-category-list button:hover { color: #e8a547; border-color: #e8a547; }
+    .bn-category-list button.active {
+        background: rgba(232, 165, 71, 0.14);
+        border-color: #e8a547;
+        color: #e8a547;
+        font-weight: 600;
+    }
+    .bn-status-tabs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .bn-status-tabs button {
+        background: var(--theme-card);
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-secondary);
+        border-radius: 10px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+    .bn-status-tabs button:hover { color: var(--theme-primary); border-color: var(--theme-primary); }
+    .bn-status-tabs button.active {
+        background: var(--theme-primary-gradient);
+        border-color: transparent;
+        color: #1a1a1a;
+    }
+    .bn-section {
+        background: var(--theme-surface);
+        border: 1px solid var(--theme-border);
+        border-radius: 16px;
+        padding: 16px;
+    }
+    .bn-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--theme-border);
+    }
+    .bn-section-heading {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--theme-text);
+        min-width: 0;
+    }
+    .bn-section-heading span:last-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .bn-section-heading-icon { color: #e8a547; }
+    .bn-clear-btn {
+        background: transparent;
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-secondary);
+        border-radius: 8px;
+        padding: 5px 12px;
+        font-size: 12.5px;
+        cursor: pointer;
+        transition: all .2s ease;
+        flex-shrink: 0;
+    }
+    .bn-clear-btn:hover { color: #e8a547; border-color: #e8a547; }
+    .bn-result-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 16px;
+    }
+    .bn-card {
+        background: var(--theme-card-gradient);
+        border: 1px solid var(--theme-border);
+        border-radius: 14px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: transform .25s ease, box-shadow .25s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    .bn-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+    }
+    .bn-card-cover {
+        width: 100%;
+        aspect-ratio: 3 / 4;
+        background: #1a2538;
+        position: relative;
+        overflow: hidden;
+    }
+    .bn-card-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .bn-card-cover .bn-card-fallback {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        color: #5a6a80; font-size: 13px;
+    }
+    .bn-card-status {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 2;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        background: rgba(0, 0, 0, 0.55);
+        color: #8fd3a0;
+    }
+    .bn-card-status.done { color: #f6c66a; }
+    .bn-card-info {
+        padding: 10px 12px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+    }
+    .bn-card-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--theme-text);
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .bn-card-author {
+        font-size: 12px;
+        color: var(--theme-text-secondary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .bn-card-category {
+        font-size: 11px;
+        color: #e8a547;
+        background: rgba(232, 165, 71, 0.12);
+        align-self: flex-start;
+        padding: 1px 8px;
+        border-radius: 999px;
+    }
+    .bn-loading,
+    .bn-empty {
+        padding: 60px 0;
+        text-align: center;
+        color: var(--theme-text-secondary);
+        font-size: 14px;
+    }
+    .bn-loading .spinner {
+        display: inline-block;
+        width: 28px;
+        height: 28px;
+        border: 3px solid var(--theme-border);
+        border-top-color: #e8a547;
+        border-radius: 50%;
+        animation: bn-spin 0.8s linear infinite;
+        margin-bottom: 12px;
+    }
+    @keyframes bn-spin { to { transform: rotate(360deg); } }
+    .bn-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin-top: 18px;
+    }
+    .bn-pagination button {
+        background: var(--theme-card);
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-secondary);
+        border-radius: 10px;
+        padding: 7px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+    .bn-pagination button:hover:not(:disabled) { color: var(--theme-primary); border-color: var(--theme-primary); }
+    .bn-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .bn-page-num {
+        font-size: 13px;
+        color: var(--theme-text-secondary);
+    }
+
+    @media (max-width: 640px) {
+        .bn-card-cover { aspect-ratio: 2 / 3; }
+        .bn-result-list { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+        .bn-head { padding: 18px 16px 16px; }
+        .bn-filter-row--split { flex-direction: column; align-items: stretch; }
+    }
+
+    /* 网盘口令弹层 */
+    .bn-code-mask {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        backdrop-filter: blur(4px);
+        z-index: 2100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .bn-code-dialog {
+        position: relative;
+        width: 100%;
+        max-width: 380px;
+        background: var(--theme-surface);
+        border: 1px solid var(--theme-border);
+        border-radius: 16px;
+        padding: 26px 24px 24px;
+        text-align: center;
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
+        animation: bn-code-pop .22s ease;
+    }
+    @keyframes bn-code-pop {
+        from { transform: scale(0.92); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+    .bn-code-close {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        background: none;
+        border: none;
+        font-size: 22px;
+        line-height: 1;
+        color: var(--theme-text-secondary);
+        cursor: pointer;
+        padding: 4px;
+    }
+    .bn-code-close:hover { color: var(--theme-text); }
+    .bn-code-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--theme-text);
+        margin-bottom: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .bn-code-subtitle {
+        font-size: 12.5px;
+        color: var(--theme-text-secondary);
+        margin-bottom: 18px;
+    }
+    .bn-code-body { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+    .bn-code-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--theme-text-secondary); font-size: 13px; }
+    .bn-code-loading .spinner {
+        display: inline-block;
+        width: 28px;
+        height: 28px;
+        border: 3px solid var(--theme-border);
+        border-top-color: var(--theme-primary);
+        border-radius: 50%;
+        animation: bn-spin 0.8s linear infinite;
+    }
+    .bn-code-text {
+        font-family: 'SFMono-Regular', Consolas, Menlo, monospace;
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 4px;
+        color: var(--theme-primary);
+        background: var(--theme-card);
+        border: 1px dashed var(--theme-border-strong);
+        border-radius: 12px;
+        padding: 14px 26px;
+        cursor: pointer;
+        user-select: all;
+        transition: all .2s ease;
+    }
+    .bn-code-text:hover { border-color: var(--theme-primary); }
+    .bn-code-copy {
+        background: var(--theme-primary-gradient);
+        border: none;
+        color: #1a1a1a;
+        font-size: 14px;
+        font-weight: 700;
+        border-radius: 10px;
+        padding: 10px 34px;
+        cursor: pointer;
+        transition: opacity .2s ease;
+    }
+    .bn-code-copy:hover { opacity: 0.88; }
+    </style>
+</head>
+
+<body>
+    <div class="headBg" style="background-image: url({$config.home_bg});display:none;"></div>
+    <div id="app" v-cloak>
+        {include file="simple/common/navbar"}
+
+        <div class="home-container">
+            <div class="bn-head">
+                <div class="bn-title">
+                    <span class="icon-book"><i class="el-icon-reading"></i></span>
+                    <span>百度小说</span>
+                </div>
+                <div class="bn-tip">精选百度小说榜单与分类资源，支持分类浏览、完结筛选与书名搜索，点击卡片获取网盘口令。</div>
+            </div>
+
+            <div class="bn-filter">
+                <div class="bn-category-list">
+                    <button type="button" :class="{ active: bnMode === 'list' && bnCategory === 'all' }"
+                        @click="switchBnCategory('all')">全部</button>
+                    <button v-for="cat in bnCategories" :key="cat" type="button"
+                        :class="{ active: bnMode === 'list' && bnCategory === cat }" @click="switchBnCategory(cat)">{{ cat }}</button>
+                </div>
+                <div class="bn-filter-row--split">
+                    <div class="bn-status-tabs">
+                        <button v-for="st in bnStatusTabs" :key="st.value" type="button"
+                            :class="{ active: bnMode === 'list' && bnBookStatus === st.value }" @click="switchBnStatus(st.value)">{{ st.label }}</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bn-section">
+                <div class="bn-section-header">
+                    <div class="bn-section-heading">
+                        <span class="bn-section-heading-icon">~</span>
+                        <span v-if="bnMode === 'search'">「{{ bnSearchWord }}」的搜索结果</span>
+                        <span v-else>{{ bnCategory === 'all' ? '全部小说' : bnCategory }}</span>
+                    </div>
+                    <button v-if="bnMode === 'search'" type="button" class="bn-clear-btn" @click="clearBnSearch">清除搜索</button>
+                </div>
+                <div v-if="bnLoading" class="bn-loading">
+                    <div class="spinner"></div>
+                    <div>加载中...</div>
+                </div>
+                <div v-else-if="!bnBooks.length" class="bn-empty">暂无数据，请稍后重试</div>
+                <template v-else>
+                    <div class="bn-result-list">
+                        <div class="bn-card" v-for="(book, idx) in bnBooks" :key="book.book_id || idx" @click="openBnBook(book)">
+                            <div class="bn-card-cover">
+                                <span class="bn-card-status" :class="book.book_status === '1' ? 'done' : ''">{{ book.book_status === '1' ? '完结' : '连载' }}</span>
+                                <img v-if="book.cover" :src="book.cover" :alt="book.title" loading="lazy" @error="book.cover=''" />
+                                <div v-else class="bn-card-fallback">暂无封面</div>
+                            </div>
+                            <div class="bn-card-info">
+                                <div class="bn-card-title">{{ book.title || '未知' }}</div>
+                                <div class="bn-card-author" v-if="book.author">{{ book.author }}</div>
+                                <div class="bn-card-category" v-if="book.category">{{ book.category }}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bn-pagination">
+                        <button type="button" :disabled="bnPage <= 1" @click="bnGotoPage(-1)">上一页</button>
+                        <span class="bn-page-num">第 {{ bnPage }} 页</span>
+                        <button type="button" :disabled="!bnHasMore" @click="bnGotoPage(1)">下一页</button>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        {include file="simple/common/foot"}
+
+        <!-- 网盘口令弹层 -->
+        <div class="bn-code-mask" v-if="bnCodeVisible" @click.self="closeBnCode">
+            <div class="bn-code-dialog">
+                <button type="button" class="bn-code-close" @click="closeBnCode">&times;</button>
+                <div class="bn-code-title" v-if="bnCodeBook">{{ bnCodeBook.title }}</div>
+                <div class="bn-code-subtitle">复制口令，打开百度网盘 App 自动保存</div>
+                <div class="bn-code-body">
+                    <div v-if="bnCodeLoading" class="bn-code-loading">
+                        <div class="spinner"></div>
+                        <div>口令生成中...</div>
+                    </div>
+                    <template v-else>
+                        <div class="bn-code-text" @click="copyBnCode">{{ bnCodeText || '—' }}</div>
+                        <button type="button" class="bn-code-copy" @click="copyBnCode">复制口令</button>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>window.__BAIDU_NOVEL_PAGE__ = true;document.body.classList.add('novel-page');</script>
+    <style>/* 与小说页一致：隐藏搜索结果中的"切换线路"入口，避免回到线路选择 */body.novel-page .search-dialog-back{display:none!important}</style>
+    {include file="simple/common/scripts"}
+</body>
+
+</html>

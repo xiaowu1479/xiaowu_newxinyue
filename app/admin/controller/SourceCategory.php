@@ -102,14 +102,6 @@ class SourceCategory extends QfShop
         }
         //从请求中获取Insert数据
         $data = $this->getInsertDataFromRequest();
-        //校验分类名称是否重复
-        $name = trim($data['name'] ?? '');
-        if ($name !== '') {
-            $exists = $this->model->where('name', $name)->find();
-            if ($exists) {
-                return jerr('分类名称已存在，请勿重复添加');
-            }
-        }
         //添加这行数据
         $data['create_time'] = time();
         $data['update_time'] = time();

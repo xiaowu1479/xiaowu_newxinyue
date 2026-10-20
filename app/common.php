@@ -1110,7 +1110,14 @@ function verificationUrl($url, $isType = 0) {
     if (preg_match('/^magnet:\?xt=urn:btih:/i', $url)) {
         return ['url' => $url];
     }
-    
+
+    // 有效性检测结果缓存 10 分钟（磁力已提前返回，不占缓存）
+    $cacheKey = 'verify_url_' . md5($url) . '_' . $isType;
+    $cached = \think\facade\Cache::get($cacheKey);
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $code = '';
     if (preg_match('/\?pwd=([^,\s&]+)/', $url, $pwdMatch)) {
         $code = trim($pwdMatch[1]);
@@ -1127,9 +1134,11 @@ function verificationUrl($url, $isType = 0) {
     $res = $transfer->transfer($urlData);
 
     if ($res['code'] !== 200) {
+        \think\facade\Cache::set($cacheKey, 0, 600);
         return 0;
     }
-    
+
+    \think\facade\Cache::set($cacheKey, $res['data'], 600);
     return $res['data'];
 }
 
@@ -1149,62 +1158,6 @@ function decryptObject($encryptedObject) {
         return $encryptedObject;
     }
     return $object;
-}
-
-/**
- * 加密外部资源(is_time=2)的 url
- * 外部资源不直接显示分享链接，需前端通过 save_url 转存后获取新链接
- * 仅加密 http/https 开头的链接，磁力链接(magnet:)不加密
- *
- * @param array $list 资源列表（引用传递，直接修改）
- */
-function encryptExternalUrls(array &$list) {
-    foreach ($list as &$item) {
-        if (is_object($item)) {
-            $item = $item->toArray();
-        }
-        if (!empty($item['is_time']) && $item['is_time'] == 2 && !empty($item['url'])) {
-            // 仅当后台已挂载对应网盘时才加密（走转存流程），否则前端直接显示原链接
-            if (strpos($item['url'], 'http') === 0 && hasPanAccount(intval($item['is_type'] ?? 0))) {
-                $item['url'] = encryptObject($item['url']);
-            }
-        }
-    }
-    unset($item);
-}
-
-/**
- * 检查对应网盘账号是否已配置（挂载）
- * 用于判断 is_time=2 外部资源是否可走转存流程
- * @param int $isType 网盘类型 0夸克 1阿里 2百度 3UC 4迅雷 10光鸭
- * @return bool
- */
-function hasPanAccount($isType) {
-    $configKeys = [
-        0 => 'quark_cookie',
-        1 => 'Authorization',
-        2 => 'baidu_cookie',
-        3 => 'uc_cookie',
-        4 => 'xunlei_cookie',
-    ];
-
-    if ($isType == 10) {
-        $authFile = app()->getConfigPath() . 'guangya_auth.json';
-        if (file_exists($authFile)) {
-            $content = file_get_contents($authFile);
-            $data = json_decode($content, true);
-            return !empty($data['access_token']);
-        }
-        return false;
-    }
-
-    $configKey = $configKeys[$isType] ?? null;
-    if ($configKey === null) {
-        return false;
-    }
-
-    $cookie = config('qfshop.' . $configKey);
-    return !empty($cookie);
 }
 
 /**

@@ -463,6 +463,31 @@
         transform: scaleX(1);
     }
 
+    /* 小说入口（顶部导航 + 抽屉菜单）：金色高亮，与小说版块入口卡片配色一致 */
+    .top-nav-menu > a.nav-menu-item-novel,
+    .top-nav-menu > a.nav-menu-item-novel.active {
+        color: #e8a547;
+        background: rgba(232, 165, 71, 0.12);
+        font-weight: 600;
+    }
+    .top-nav-menu > a.nav-menu-item-novel:hover {
+        color: #f6c66a;
+        background: rgba(232, 165, 71, 0.18);
+    }
+    .top-nav-menu > a.nav-menu-item-novel::after { background: #e8a547 !important; }
+
+    .nav-drawer-menu > a.nav-drawer-item-novel,
+    .nav-drawer-item.nav-drawer-item-novel {
+        color: #e8a547;
+        background: rgba(232, 165, 71, 0.1);
+        font-weight: 600;
+    }
+    .nav-drawer-menu > a.nav-drawer-item-novel:hover,
+    .nav-drawer-item.nav-drawer-item-novel:hover {
+        color: #fff;
+        background: linear-gradient(135deg, #e8a547, #f6c66a);
+    }
+
     .top-nav-actions {
         gap: 12px;
     }

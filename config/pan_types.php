@@ -111,4 +111,14 @@ return [
         'class_name' => 'GuangyaPan',
         'sort' => 11,
     ],
+    11 => [
+        'id' => 11,
+        'name' => '小说',
+        'domain' => '',
+        'cookie_key' => '',
+        'pan_type' => 'novel',
+        'url_pattern' => '/.*/',
+        'class_name' => '',
+        'sort' => 12,
+    ],
 ];

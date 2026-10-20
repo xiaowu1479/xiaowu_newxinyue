@@ -124,13 +124,7 @@
             </el-col>
             <el-col :span="10">
                 <div class="chart-card">
-                    <div class="chart-header amber"><span class="chart-title">搜索关键词 Top10</span>
-                        <el-radio-group v-model="keywordDays" size="mini" style="margin-left:auto;" @change="switchKeywordDays">
-                            <el-radio-button :label="0">总榜</el-radio-button>
-                            <el-radio-button :label="1">1天</el-radio-button>
-                            <el-radio-button :label="7">7天</el-radio-button>
-                        </el-radio-group>
-                    </div>
+                    <div class="chart-header amber"><span class="chart-title">搜索关键词 Top10</span></div>
                     <div class="chart-body"><div id="keywordChart" style="height:320px;" v-loading="loading2"></div></div>
                 </div>
             </el-col>
@@ -170,7 +164,6 @@
                     loading1: false, loading2: false, loading3: false,
                     kpi: { todaySearch: 0, totalSearch: 0, totalSource: 0, todayNewSource: 0 },
                     trendDays: 7,
-                    keywordDays: 0,
                     daily: [],
                     sys: { php_version:'-', mysql_version:'-', os:'-', server_ip:'-', disk_free:'-', disk_total:'-', max_upload:'-', memory_limit:'-', server_time:'-' },
                     chart1: null, chart2: null, chart3: null
@@ -201,13 +194,10 @@
                         }
                     }).catch(function(){ that.loading1 = false; });
                 },
-                switchKeywordDays() {
-                    this.loadKeywords();
-                },
                 loadKeywords() {
                     var that = this;
                     this.loading2 = true;
-                    axios.post('/admin/index/keywordRank', Object.assign({days: this.keywordDays}, PostBase)).then(function(res){
+                    axios.post('/admin/index/keywordRank', Object.assign({}, PostBase)).then(function(res){
                         that.loading2 = false;
                         if(res.data.code==CODE_SUCCESS){
                             that.$nextTick(function(){ that.renderKeywordChart(res.data.data); });

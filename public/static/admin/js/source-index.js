@@ -38,7 +38,7 @@
                         source_category_id: '',
                         is_type: '',
                         account_name: '',
-                        is_time: '',
+                        is_time: 0,
                         is_top: ''
                     },
                     formLabelWidth: '120px',
@@ -51,14 +51,14 @@
                     coverResults: [],
                     coverLoading: false,
                     coverTarget: 'add',
-                    coverReplaceTitle: false,
+                    coverReplaceTitle: true,
                     loading: true,
                     selectList: [],
                     dataList: [],
                     form: {
                         page: 1,
                         per_page: 10,
-                        order: 'create_time desc',
+                        order: 'update_time desc',
                         sort_field: '',
                         sort_order: ''
                     },
@@ -74,9 +74,6 @@
                     Importform: {
 
                     },
-                    importParsedList: [],
-                    importParsing: false,
-                    importExcelFile: null,
 
                     category: [],
                     accountList: [],
@@ -106,6 +103,38 @@
                         batchSize: 10,
                         batchPause: 10,
                     },
+                    // 资源订阅
+                    dialogSubscribe: false,
+                    subscribeView: 'list',
+                    subscribeLoading: false,
+                    subscribeSaving: false,
+                    subscribeList: [],
+                    subscribeErrors: [],
+                    subscribeForm: {},
+                    // panbot 同步
+                    dialogPanBot: false,
+                    panBotLoading: false,
+                    panBotSaving: false,
+                    panBotTesting: false,
+                    panBotResyncing: false,
+                    panBotConfig: {},
+                    panBotForm: {
+                        base_url: '',
+                        api_key: '',
+                        interval_minutes: 360
+                    },
+                    panBotRecent: {
+                        list: [],
+                        total: 0,
+                        since: 0,
+                        limit: 50
+                    },
+                    // panbot 同步分类勾选
+                    panBotCategories: [],
+                    panBotCatSelected: [],
+                    panBotCatsLoading: false,
+                    panBotCatsSaving: false,
+                    panBotCatTimer: null,
                 }
             },
             created() {
@@ -130,6 +159,18 @@
                 }
             },
             methods: {
+                // 网盘类型显示（资源行的标签）
+                panTypeLabel(t) {
+                    var map = ['夸克', '阿里', '百度', 'UC', '迅雷', '123', '115', '天翼', '移动', '磁力', '小说'];
+                    return map[t] || ('类型' + (t || 0));
+                },
+                panTypeTagType(t) {
+                    // 夸克=primary，其它 warning/info 轮换
+                    if (t == 0) return '';
+                    if (t == 1 || t == 2) return 'success';
+                    if (t == 4 || t == 6) return 'warning';
+                    return 'info';
+                },
                 getList_search(val) {
                     if (val == 0) {
                         this.search = {
@@ -138,34 +179,15 @@
                             source_category_id: '',
                             is_type: '',
                             account_name: '',
-                            is_time: '',
+                            is_time: 0,
                             is_top: ''
                         }
                         // 重置排序
                         this.form.sort_field = '';
                         this.form.sort_order = '';
-                        this.form.order = 'create_time desc';
+                        this.form.order = 'update_time desc';
                     }
                     this.form.page = 1;
-                    this.getList();
-                },
-                // 筛选弹窗：确认筛选（组合筛选，不重置其他选项）
-                applyFilter() {
-                    this.form.page = 1;
-                    this.filterVisible = false;
-                    this.getList();
-                },
-                // 筛选弹窗：重置所有筛选条件
-                resetFilter() {
-                    this.search.source_category_id = '';
-                    this.search.is_type = '';
-                    this.search.is_time = '';
-                    this.search.is_top = '';
-                    this.form.order = 'create_time desc';
-                    this.form.sort_field = '';
-                    this.form.sort_order = '';
-                    this.form.page = 1;
-                    this.filterVisible = false;
                     this.getList();
                 },
                 handleSizeChange(per_page) {
@@ -186,7 +208,7 @@
                             // 取消排序，恢复默认
                             this.form.sort_field = '';
                             this.form.sort_order = '';
-                            this.form.order = 'create_time desc';
+                            this.form.order = 'update_time desc';
                         }
                         this.form.page = 1;
                         this.getList();
@@ -428,7 +450,7 @@
                 switchCoverTab(type) {
                     this.coverSearchType = type;
                     this.coverResults = [];
-                    this.coverReplaceTitle = false;
+                    this.coverReplaceTitle = (type === 'movie' || type === 'game' || type === 'book');
                 },
                 doSearchCover() {
                     var keyword = this.coverSearchKeyword.trim();
@@ -499,6 +521,18 @@
                     if (this.coverResults[index]) {
                         this.coverResults[index].cover = '';
                         this.coverResults[index].cover_proxy = '';
+                    }
+                },
+                // 资源卡片封面加载失败兜底（如 PanBot 签名直链过期）：隐藏破图并显示占位图标
+                cardCoverError(e, placeholderClass) {
+                    var img = e.target;
+                    if (!img || img.dataset.fallbackDone) return;
+                    img.dataset.fallbackDone = '1';
+                    img.style.display = 'none';
+                    if (img.parentElement && !img.parentElement.querySelector('.cover-fallback-placeholder')) {
+                        var i = document.createElement('i');
+                        i.className = 'el-icon-picture-outline ' + (placeholderClass || 'source-card-cover-placeholder') + ' cover-fallback-placeholder';
+                        img.parentElement.appendChild(i);
                     }
                 },
                 handleCoverSuccessAdd(res, file) {
@@ -658,16 +692,10 @@
                         is_time: 0,
                         textInput: ''
                     }
-                    this.importParsedList = [];
-                    this.importParsing = false;
-                    this.importExcelFile = null;
                     this.dialogImport = true
                 },
                 handleExceed(files, fileList) {
                     this.$message.warning(`只能选择一个文件`);
-                },
-                handleImportFileChange(file, fileList) {
-                    this.importExcelFile = file.raw || null;
                 },
                 handleAvatarSuccess(res, file) {
                     if (res.code == 200) {
@@ -683,30 +711,9 @@
                     this.$refs.ImportUpload.clearFiles();
                 },
                 ImportPost() {
-                    var that = this;
-                    // 已识别记录时，提交过滤后的列表（跳过被用户删除的记录）
-                    if (that.importParsedList.length) {
-                        var postData = Object.assign({}, PostBase, {
-                            parsed_data: JSON.stringify(that.importParsedList),
-                            source_category_id: that.Importform.source_category_id || 0,
-                            is_time: that.Importform.is_time || 0
-                        });
-                        axios.post('/admin/source/imports', postData).then(function(res) {
-                            if (res.data.code == 200) {
-                                that.getList();
-                                that.$message.success(res.data.message);
-                                that.dialogImport = false;
-                            } else {
-                                that.$message.error(res.data.message);
-                            }
-                        }).catch(function(error) {
-                            that.$message.error('服务器内部错误');
-                        });
-                        return;
-                    }
-                    that.Importform = Object.assign(that.Importform, PostBase)
-                    that.$nextTick(() => {
-                        that.$refs.ImportUpload.submit();
+                    this.Importform = Object.assign(this.Importform, PostBase)
+                    this.$nextTick(() => {
+                        this.$refs.ImportUpload.submit();
                     })
                 },
                 ImportTextInput() {
@@ -715,17 +722,12 @@
                         that.$message.error('请输入资源内容');
                         return;
                     }
-                    var postData = Object.assign({}, PostBase, {
+                    axios.post('/admin/source/transfer', Object.assign({}, PostBase, {
                         type: 1,
                         urls: that.Importform.textInput,
                         source_category_id: that.Importform.source_category_id || 0,
                         is_time: that.Importform.is_time || 0
-                    });
-                    // 已识别记录时，提交过滤后的列表（跳过被删除的记录）
-                    if (that.importParsedList.length) {
-                        postData.parsed_data = JSON.stringify(that.importParsedList);
-                    }
-                    axios.post('/admin/source/transfer', postData).then(function(res) {
+                    })).then(function(res) {
                         var stat = res.data.data || {};
                         that.$message({
                             message: '导入完成：成功 ' + (stat.success || 0) + ' 条，跳过 ' + (stat.skip || 0) + ' 条，失败 ' + (stat.fail || 0) + ' 条',
@@ -734,62 +736,6 @@
                         that.getList();
                         that.dialogImport = false;
                     }).catch(function(error) {
-                        that.$message.error('服务器内部错误');
-                    });
-                },
-
-                //识别解析输入内容（不入库）
-                ImportParse() {
-                    var that = this;
-                    if (!that.Importform.textInput || !that.Importform.textInput.trim()) {
-                        that.$message.error('请输入资源内容');
-                        return;
-                    }
-                    that.importParsing = true;
-                    axios.post('/admin/source/parseImport', Object.assign({}, PostBase, {
-                        urls: that.Importform.textInput
-                    })).then(function(res) {
-                        that.importParsing = false;
-                        if (res.data.code == 200) {
-                            that.importParsedList = res.data.data || [];
-                            that.$message.success('识别完成，共 ' + that.importParsedList.length + ' 条记录');
-                        } else {
-                            that.$message.error(res.data.message || '识别失败');
-                        }
-                    }).catch(function(error) {
-                        that.importParsing = false;
-                        that.$message.error('服务器内部错误');
-                    });
-                },
-
-                //删除识别记录（不导入该条）
-                deleteParsedItem(index) {
-                    this.importParsedList.splice(index, 1);
-                },
-
-                //识别解析Excel文件（不入库）
-                ImportParseExcel() {
-                    var that = this;
-                    if (!that.importExcelFile) {
-                        that.$message.error('请先选择文件');
-                        return;
-                    }
-                    that.importParsing = true;
-                    var formData = new FormData();
-                    formData.append('file', that.importExcelFile);
-                    Object.keys(PostBase).forEach(function(key) {
-                        formData.append(key, PostBase[key]);
-                    });
-                    axios.post('/admin/source/parseExcel', formData).then(function(res) {
-                        that.importParsing = false;
-                        if (res.data.code == 200) {
-                            that.importParsedList = res.data.data || [];
-                            that.$message.success('识别完成，共 ' + that.importParsedList.length + ' 条记录');
-                        } else {
-                            that.$message.error(res.data.message || '识别失败');
-                        }
-                    }).catch(function(error) {
-                        that.importParsing = false;
                         that.$message.error('服务器内部错误');
                     });
                 },
@@ -1147,13 +1093,6 @@
                     this.scrapeStatusText = '已终止';
                     this.scrapeStarted = false;
                 },
-                // 关闭刮削弹窗（进行中则先终止）
-                scrapeClose() {
-                    if (this.scrapeStarted) {
-                        this.scrapeAbort();
-                    }
-                    this.dialogScrape = false;
-                },
                 // 刮削状态标签类型
                 scrapeStatusType(status) {
                     var map = { pending: 'info', processing: 'warning', success: 'success', fail: 'danger', skip: 'info' };
@@ -1203,6 +1142,429 @@
                         that.$message.error('服务器内部错误');
                         console.log(error);
                     });
+                },
+
+                // ==================== 资源订阅 ====================
+                // 打开订阅管理弹窗
+                SubscribeShow() {
+                    var that = this;
+                    that.dialogSubscribe = true;
+                    that.subscribeView = 'list';
+                    that.getSubscribeList();
+                },
+                // 订阅列表
+                getSubscribeList() {
+                    var that = this;
+                    that.subscribeLoading = true;
+                    axios.post('/admin/source_subscribe/getList', Object.assign({}, PostBase, { page: 1, per_page: 100 }))
+                        .then(function (response) {
+                            that.subscribeLoading = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                var rows = response.data.data.data || [];
+                                that.subscribeList = rows.map(function (row) {
+                                    row._pulling = false;
+                                    return row;
+                                });
+                                // 汇总最近一次拉取有错误的订阅，列表下方提示
+                                that.subscribeErrors = rows.filter(function (r) {
+                                    return r.last_error;
+                                });
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.subscribeLoading = false;
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                },
+                // 新增订阅
+                clickSubscribeAdd() {
+                    this.subscribeForm = {
+                        name: '',
+                        url: '',
+                        code: '',
+                        client_id: '',
+                        client_secret: '',
+                        source_category_id: '',
+                        is_time: 0,
+                        pull_mode: 1,
+                        interval_minutes: 60
+                    };
+                    this.subscribeView = 'form';
+                },
+                // 编辑订阅
+                clickSubscribeEdit(row) {
+                    this.subscribeForm = {
+                        subscribe_id: row.subscribe_id,
+                        name: row.name,
+                        url: row.url,
+                        code: row.code,
+                        client_id: row.client_id || '',
+                        client_secret: row.client_secret || '',
+                        source_category_id: row.source_category_id || '',
+                        is_time: parseInt(row.is_time) || 0,
+                        pull_mode: parseInt(row.pull_mode) || 1,
+                        interval_minutes: parseInt(row.interval_minutes) || 60
+                    };
+                    this.subscribeView = 'form';
+                },
+                // 保存订阅（新增/编辑）
+                saveSubscribe() {
+                    var that = this;
+                    if (!that.subscribeForm.name || !that.subscribeForm.name.trim()) {
+                        that.$message.error('请输入订阅名称');
+                        return;
+                    }
+                    if (!that.subscribeForm.url || !that.subscribeForm.url.trim()) {
+                        that.$message.error('请输入 PanBot 服务地址');
+                        return;
+                    }
+                    if (!that.subscribeForm.code || !that.subscribeForm.code.trim()) {
+                        that.$message.error('请输入订阅码');
+                        return;
+                    }
+                    if (!that.subscribeForm.client_id || !that.subscribeForm.client_id.trim()) {
+                        that.$message.error('请输入 client_id');
+                        return;
+                    }
+                    if (!that.subscribeForm.client_secret || !that.subscribeForm.client_secret.trim()) {
+                        that.$message.error('请输入 client_secret');
+                        return;
+                    }
+                    that.subscribeSaving = true;
+                    var isEdit = !!that.subscribeForm.subscribe_id;
+                    axios.post('/admin/source_subscribe/' + (isEdit ? 'update' : 'add'),
+                        Object.assign({}, PostBase, that.subscribeForm))
+                        .then(function (response) {
+                            that.subscribeSaving = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.$message.success(response.data.message);
+                                that.subscribeView = 'list';
+                                that.getSubscribeList();
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.subscribeSaving = false;
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                },
+                // 启停订阅
+                clickSubscribeStatus(row) {
+                    var that = this;
+                    var target = row.status == 1 ? 0 : 1;
+                    axios.post('/admin/source_subscribe/setStatus', Object.assign({}, PostBase, {
+                        subscribe_id: row.subscribe_id,
+                        status: target
+                    })).then(function (response) {
+                        if (response.data.code == CODE_SUCCESS) {
+                            that.$message.success(response.data.message);
+                            that.getSubscribeList();
+                        } else {
+                            that.$message.error(response.data.message);
+                        }
+                    }).catch(function (error) {
+                        that.$message.error('服务器内部错误');
+                        console.log(error);
+                    });
+                },
+                // 删除订阅（物理删除，不影响已入库资源）
+                clickSubscribeDelete(row) {
+                    var that = this;
+                    that.$confirm('确定删除订阅「' + row.name + '」吗？已入库的资源不受影响', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(function () {
+                        axios.post('/admin/source_subscribe/delete', Object.assign({}, PostBase, {
+                            subscribe_id: row.subscribe_id
+                        })).then(function (response) {
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.$message.success(response.data.message);
+                                that.getSubscribeList();
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        }).catch(function (error) {
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                    }).catch(function () {});
+                },
+                // 立即拉取指定订阅（忽略到期判断）
+                clickPullSubscribe(row) {
+                    var that = this;
+                    row._pulling = true;
+                    axios.post('/admin/source_subscribe/pullNow', Object.assign({}, PostBase, {
+                        subscribe_id: row.subscribe_id
+                    })).then(function (response) {
+                        row._pulling = false;
+                        if (response.data.code == CODE_SUCCESS) {
+                            var stat = response.data.data || {};
+                            that.$message.success(response.data.message);
+                            if (stat.last_error) {
+                                that.$message.warning('部分失败：' + stat.last_error);
+                            }
+                            that.getSubscribeList();
+                        } else {
+                            that.$message.error(response.data.message);
+                        }
+                    }).catch(function (error) {
+                        row._pulling = false;
+                        that.$message.error('服务器内部错误');
+                        console.log(error);
+                    });
+                },
+                // 「更多」下拉分发：edit / disable / enable / delete
+                handleSubscribeCommand(cmd) {
+                    if (!cmd || !cmd.row) return;
+                    if (cmd.action === 'edit') this.clickSubscribeEdit(cmd.row);
+                    else if (cmd.action === 'disable') this.clickSubscribeStatus(cmd.row);
+                    else if (cmd.action === 'enable') this.clickSubscribeStatus(cmd.row);
+                    else if (cmd.action === 'delete') this.clickSubscribeDelete(cmd.row);
+                },
+                // 订阅时间戳格式化
+                formatSubscribeTime(ts) {
+                    if (!ts) return '未拉取';
+                    var d = new Date(parseInt(ts) * 1000);
+                    var p = function (n) { return n < 10 ? '0' + n : n; };
+                    return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+                },
+
+                // ==================== panbot 同步 ====================
+                // 打开 panbot 弹窗：拉取配置 + 最近实际同步到 qf_source 的资源
+                PanBotShow() {
+                    this.dialogPanBot = true;
+                    this.getPanBotConfig();
+                    this.getPanBotRecent();
+                    this.getPanBotCategories();
+                },
+                // 获取 panbot 配置
+                getPanBotConfig() {
+                    var that = this;
+                    that.panBotLoading = true;
+                    axios.post('/admin/pan_bot/getConfig', Object.assign({}, PostBase))
+                        .then(function (response) {
+                            that.panBotLoading = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                var row = response.data.data || {};
+                                that.panBotConfig = row;
+                                that.panBotForm = {
+                                    base_url: row.base_url || '',
+                                    api_key: row.api_key || '',
+                                    interval_minutes: parseInt(row.interval_minutes) || 0
+                                };
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.panBotLoading = false;
+                            var detail = (error && error.response && error.response.data && error.response.data.message) || (error && error.message) || '服务器内部错误';
+                            that.$message.error('加载 PanBot 配置失败：' + detail);
+                            console.log(error);
+                        });
+                },
+                // 测试连接
+                testPanBot() {
+                    var that = this;
+                    if (!that.panBotForm.base_url || !that.panBotForm.base_url.trim()) {
+                        that.$message.error('请填写服务地址');
+                        return;
+                    }
+                    if (!that.panBotForm.api_key || !that.panBotForm.api_key.trim()) {
+                        that.$message.error('请填写 API Key');
+                        return;
+                    }
+                    that.panBotTesting = true;
+                    axios.post('/admin/pan_bot/testConnection', Object.assign({}, PostBase, {
+                        base_url: that.panBotForm.base_url,
+                        api_key: that.panBotForm.api_key
+                    })).then(function (response) {
+                        that.panBotTesting = false;
+                        if (response.data.code == CODE_SUCCESS) {
+                            that.$message.success(response.data.message);
+                        } else {
+                            that.$message.error(response.data.message);
+                        }
+                    }).catch(function (error) {
+                        that.panBotTesting = false;
+                        that.$message.error('服务器内部错误');
+                        console.log(error);
+                    });
+                },
+                // 全量重拉：重置勾选分类同步水位后立即重新拉取勾选分类的全部资源（未勾选分类不会拉取）
+                panBotFullResync() {
+                    var that = this;
+                    that.$confirm('将重置勾选分类的同步水位，并重新拉取勾选分类下的全部资源（未勾选分类不会拉取），确认执行？', '全量重拉', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(function () {
+                        that.panBotResyncing = true;
+                        axios.post('/admin/pan_bot/resetSyncTime', Object.assign({}, PostBase))
+                            .then(function (response) {
+                                if (response.data.code != CODE_SUCCESS) {
+                                    that.panBotResyncing = false;
+                                    that.$message.error(response.data.message);
+                                    return;
+                                }
+                                return axios.post('/admin/pan_bot/syncAll', Object.assign({}, PostBase));
+                            })
+                            .then(function (response) {
+                                that.panBotResyncing = false;
+                                if (!response) return;
+                                if (response.data.code == CODE_SUCCESS) {
+                                    that.$message.success(response.data.message);
+                                    that.getPanBotRecent();
+                                    that.getList();
+                                } else {
+                                    that.$message.error(response.data.message);
+                                }
+                            })
+                            .catch(function (error) {
+                                that.panBotResyncing = false;
+                                var detail = (error && error.response && error.response.data && error.response.data.message) || (error && error.message) || '服务器内部错误';
+                                that.$message.error('全量重拉失败：' + detail);
+                                console.log(error);
+                            });
+                    }).catch(function () {});
+                },
+                // 保存配置：服务端立即跑一次全量，后续由 cron 自动增量
+                savePanBot() {
+                    var that = this;
+                    if (!that.panBotForm.base_url || !that.panBotForm.base_url.trim()) {
+                        that.$message.error('请填写服务地址');
+                        return;
+                    }
+                    if (!that.panBotForm.api_key || !that.panBotForm.api_key.trim()) {
+                        that.$message.error('请填写 API Key');
+                        return;
+                    }
+                    that.panBotSaving = true;
+                    axios.post('/admin/pan_bot/saveConfig', Object.assign({}, PostBase, that.panBotForm))
+                        .then(function (response) {
+                            that.panBotSaving = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.$message.success(response.data.message);
+                                // 刷新配置 + 最近同步资源 + 主资源列表
+                                that.getPanBotConfig();
+                                that.getPanBotRecent();
+                                that.getList();
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.panBotSaving = false;
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                },
+                // 拉取最近实际同步到 qf_source 的资源
+                getPanBotRecent() {
+                    var that = this;
+                    axios.post('/admin/pan_bot/getRecentResources', Object.assign({}, PostBase))
+                        .then(function (response) {
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.panBotRecent = response.data.data || { list: [], total: 0, since: 0 };
+                            } else {
+                                that.panBotRecent = { list: [], total: 0, since: 0 };
+                            }
+                        })
+                        .catch(function (error) {
+                            that.panBotRecent = { list: [], total: 0, since: 0 };
+                            console.log(error);
+                        });
+                },
+                // ==================== panbot 同步分类勾选 ====================
+                // 拉取同步大类勾选列表（一级大类=资源库：library_id / library_name / is_sync / category_total）
+                getPanBotCategories() {
+                    var that = this;
+                    that.panBotCatsLoading = true;
+                    axios.post('/admin/pan_bot/getCategories', Object.assign({}, PostBase))
+                        .then(function (response) {
+                            that.panBotCatsLoading = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.panBotCategories = (response.data.data && response.data.data.list) || [];
+                                // 回显已勾选大类
+                                that.panBotCatSelected = [];
+                                that.panBotCategories.forEach(function (cat) {
+                                    if (parseInt(cat.is_sync) === 1) {
+                                        that.panBotCatSelected.push(String(cat.library_id));
+                                    }
+                                });
+                            } else {
+                                that.panBotCategories = [];
+                                that.panBotCatSelected = [];
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.panBotCatsLoading = false;
+                            that.panBotCategories = [];
+                            that.panBotCatSelected = [];
+                            console.log(error);
+                        });
+                },
+                // 勾选变化 500ms 防抖后保存（连续点击只提交最终勾选状态）
+                onPanBotCatChange() {
+                    var that = this;
+                    if (that.panBotCatTimer) {
+                        clearTimeout(that.panBotCatTimer);
+                    }
+                    that.panBotCatTimer = setTimeout(function () {
+                        that.panBotCatsSaving = true;
+                        axios.post('/admin/pan_bot/saveCategories', Object.assign({}, PostBase, {
+                            library_ids: that.panBotCatSelected || []
+                        }))
+                            .then(function (response) {
+                                that.panBotCatsSaving = false;
+                                if (response.data.code == CODE_SUCCESS) {
+                                    that.$message.success(response.data.message);
+                                } else {
+                                    that.$message.error(response.data.message);
+                                }
+                            })
+                            .catch(function (error) {
+                                that.panBotCatsSaving = false;
+                                that.$message.error('服务器内部错误');
+                                console.log(error);
+                            });
+                    }, 500);
+                },
+                // 全选 / 全不选
+                panBotCatToggleAll(check) {
+                    var selected = [];
+                    if (check) {
+                        this.panBotCategories.forEach(function (cat) {
+                            selected.push(String(cat.library_id));
+                        });
+                    }
+                    this.panBotCatSelected = selected;
+                    this.onPanBotCatChange();
+                },
+                // 通过本地分类 id 反查名称
+                findLocalCategoryName(id) {
+                    if (!id) return '';
+                    var list = this.category || [];
+                    for (var i = 0; i < list.length; i++) {
+                        if (parseInt(list[i].source_category_id) === parseInt(id)) {
+                            return list[i].name;
+                        }
+                    }
+                    return '';
+                },
+                // 时间戳格式化
+                formatPanBotTime(ts) {
+                    if (!ts || ts == 0) return '';
+                    var d = new Date(parseInt(ts) * 1000);
+                    var p = function (n) { return n < 10 ? '0' + n : n; };
+                    return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
                 },
             }
         })

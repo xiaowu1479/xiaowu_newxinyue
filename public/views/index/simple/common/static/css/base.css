@@ -90,12 +90,31 @@ a {
 }
 
 /* ===== Element Plus 对话框覆盖 ===== */
+/* 弹窗背景/文字跟随站点主题变量：暗色主题深色弹窗，亮色主题浅色弹窗 */
 
 .el-dialog {
     border-radius: 20px !important;
     overflow: hidden;
     border: 1px solid var(--theme-border);
+    background-color: var(--theme-surface) !important;
     box-shadow: 0 28px 80px rgba(18, 24, 38, 0.18) !important;
+}
+
+.el-dialog .el-dialog__title {
+    color: var(--theme-text) !important;
+    font-weight: 700;
+}
+
+.el-dialog .el-dialog__body {
+    color: var(--theme-text);
+}
+
+.el-dialog .el-dialog__headerbtn .el-dialog__close {
+    color: var(--theme-text-secondary);
+}
+
+.el-dialog .el-dialog__headerbtn:hover .el-dialog__close {
+    color: var(--theme-primary);
 }
 
 .el-overlay {

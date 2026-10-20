@@ -5,6 +5,7 @@ namespace app\admin\controller;
 use think\App;
 use app\admin\QfShop;
 use app\model\Banner as BannerModel;
+use app\service\BannerService;
 
 class Banner extends QfShop
 {
@@ -37,6 +38,30 @@ class Banner extends QfShop
             "banner_title" => "名称必须填写",
         ];
         $this->model = new BannerModel();
+    }
+
+    /**
+     * 增删改后清理前台轮播缓存（前台经 BannerService::frontendJson() 读取）
+     */
+    public function add()
+    {
+        $res = parent::add();
+        BannerService::clearCache();
+        return $res;
+    }
+
+    public function update()
+    {
+        $res = parent::update();
+        BannerService::clearCache();
+        return $res;
+    }
+
+    public function delete()
+    {
+        $res = parent::delete();
+        BannerService::clearCache();
+        return $res;
     }
 
 
@@ -84,6 +109,7 @@ class Banner extends QfShop
         $map = ["banner_id" => $banner_id];
         $this->model->where($map)->update($d);
 
+        BannerService::clearCache();
         return jok("操作成功");
     }
 }

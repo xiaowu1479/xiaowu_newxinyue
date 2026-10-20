@@ -22,10 +22,8 @@ class Upgrade
         '#uploads/#i',
         '#backup/#i',
         '#\.upgrade_tmp/#i',
-        '#panchek/cache/#i',
+        '#pancheck/cache/#i',
         '#access_token.*\.json$#i',
-        '#_token\.json$#i',
-        '#_(auth|device)\.json$#i',
         '#\.log$#i',
     ];
     // 项目根目录(带末尾分隔符)
@@ -108,17 +106,6 @@ class Upgrade
     }
 
     /**
-     * 获取当前服务器域名
-     */
-    public function getLocalDomain(): string
-    {
-        if (!empty($_SERVER['HTTP_HOST'])) {
-            return $_SERVER['HTTP_HOST'];
-        }
-        return '';
-    }
-
-    /**
      * 写入本地版本号
      */
     public function setLocalVersion(string $version): bool
@@ -136,122 +123,16 @@ class Upgrade
     }
 
     /**
-     * 更新源类型: server=主服务器  github=GitHub 仓库
-     */
-    public function getSourceType(): string
-    {
-        return $this->getConfig('upgrade_source', 'server') === 'github' ? 'github' : 'server';
-    }
-
-    /**
-     * 是否使用 GitHub 更新源
-     */
-    public function isGithubSource(): bool
-    {
-        return $this->getSourceType() === 'github';
-    }
-
-    /**
-     * 规范化后的 GitHub 仓库(用户名/仓库名)
-     */
-    protected function getGithubRepo(): string
-    {
-        $repo = trim($this->getConfig('upgrade_github_repo', ''));
-        $repo = (string) preg_replace('#^https?://(www\.)?github\.com/#i', '', $repo);
-        $repo = trim($repo, " \t\n\r\0\x0B/");
-        // 允许粘贴带 .git 后缀的克隆地址
-        $repo = (string) preg_replace('#\.git$#i', '', $repo);
-        return trim($repo, " \t\n\r\0\x0B/");
-    }
-
-    /**
-     * GitHub 分支名
-     */
-    protected function getGithubBranch(): string
-    {
-        $branch = trim($this->getConfig('upgrade_github_branch', ''), " \t\n\r\0\x0B/");
-        return $branch === '' ? 'main' : $branch;
-    }
-
-    /**
-     * 构造 GitHub raw 文件地址
-     */
-    protected function githubUrl(string $path): string
-    {
-        $path = ltrim(str_replace('\\', '/', $path), '/');
-        return 'https://raw.githubusercontent.com/' . $this->getGithubRepo() . '/'
-            . rawurlencode($this->getGithubBranch()) . '/' . $path;
-    }
-
-    /**
-     * 从 GitHub 仓库读取单个文件(仅支持公开仓库)
-     * 成功返回文件内容,失败返回 null
-     */
-    protected function githubFetch(string $path, int $timeout = 30): ?string
-    {
-        $repo = $this->getGithubRepo();
-        if ($repo === '' || strpos($repo, '/') === false) {
-            return null;
-        }
-        // Cache-Control: no-cache 用于绕开 GitHub CDN 的短期缓存
-        $header = ['User-Agent: qfshop-upgrade', 'Cache-Control: no-cache'];
-        $resp = curlHelper($this->githubUrl($path), 'GET', null, $header, '', '', $timeout);
-        if (isset($resp['error'])) {
-            return null;
-        }
-        if ((int) ($resp['detail']['http_code'] ?? 0) !== 200) {
-            return null;
-        }
-        return $resp['body'];
-    }
-
-    /**
-     * 读取 GitHub 仓库根目录的 manifest.json 文件清单
-     */
-    protected function getGithubManifest(): array
-    {
-        $repo = $this->getGithubRepo();
-        if ($repo === '' || strpos($repo, '/') === false) {
-            return ['code' => 500, 'message' => '未配置 GitHub 仓库,格式应为 用户名/仓库名'];
-        }
-        $body = $this->githubFetch('manifest.json');
-        if ($body === null) {
-            return ['code' => 500, 'message' => '读取 manifest.json 失败,请检查仓库地址、分支名是否正确,以及仓库是否为公开仓库'];
-        }
-        $data = json_decode($body, true);
-        if (!is_array($data) || empty($data['files']) || !is_array($data['files'])) {
-            return ['code' => 500, 'message' => 'manifest.json 格式不正确或文件清单为空'];
-        }
-        return ['code' => 200, 'data' => [
-            'version'     => (string) ($data['version'] ?? ''),
-            'sql_version' => (string) ($data['sql_version'] ?? ''),
-            'changelog'   => (string) ($data['changelog'] ?? ''),
-            'files'       => $data['files'],
-            'file_count'  => count($data['files']),
-        ]];
-    }
-
-    /**
-     * 请求更新源获取文件清单
+     * 请求主服务器获取文件清单
      */
     public function getRemoteManifest(): array
     {
-        if ($this->isGithubSource()) {
-            return $this->getGithubManifest();
-        }
         $server = rtrim($this->getConfig('upgrade_server', ''), '/');
         if (empty($server)) {
             return ['code' => 500, 'message' => '未配置更新源地址'];
         }
         $secret = $this->getConfig('upgrade_secret', '');
-        // 上报当前服务器域名和版本
-        $domain = $this->getLocalDomain();
-        $version = $this->getLocalVersion();
-        $sqlVersion = $this->getLocalSqlVersion();
-        $url = $server . '/api/update/manifest?secret=' . urlencode($secret)
-            . '&domain=' . urlencode($domain)
-            . '&version=' . urlencode($version)
-            . '&sql_version=' . urlencode($sqlVersion);
+        $url = $server . '/api/update/manifest?secret=' . urlencode($secret);
         $resp = curlHelper($url, 'GET', null, [], '', '', 30);
         if (isset($resp['error'])) {
             return ['code' => 500, 'message' => '连接更新源失败: ' . $resp['error']];
@@ -320,13 +201,10 @@ class Upgrade
     }
 
     /**
-     * 从更新源下载单个文件,成功返回内容,失败返回 null
+     * 从主服务器下载单个文件,返回内容或 false
      */
     public function downloadFile(string $path): ?string
     {
-        if ($this->isGithubSource()) {
-            return $this->githubFetch($path, 60);
-        }
         $server = rtrim($this->getConfig('upgrade_server', ''), '/');
         $secret = $this->getConfig('upgrade_secret', '');
         $url = $server . '/api/update/file?path=' . urlencode($path) . '&secret=' . urlencode($secret);
@@ -338,17 +216,10 @@ class Upgrade
     }
 
     /**
-     * 从更新源获取 SQL 迁移脚本
+     * 从主服务器获取 SQL 迁移脚本
      */
     public function getRemoteSql(): array
     {
-        if ($this->isGithubSource()) {
-            $body = $this->githubFetch('upgrade.sql');
-            return ['code' => 200, 'data' => [
-                'sql_version' => $this->getLocalSqlVersion(),
-                'sql'         => $body === null ? '' : $body,
-            ]];
-        }
         $server = rtrim($this->getConfig('upgrade_server', ''), '/');
         $secret = $this->getConfig('upgrade_secret', '');
         $url = $server . '/api/update/sql?secret=' . urlencode($secret);
@@ -509,19 +380,13 @@ class Upgrade
 
         // 4. 执行 SQL 迁移
         $sqlResult = '';
-        $sqlSuccess = true;
         $remoteSqlVersion = $diff['remote_sql_version'] ?? '';
         $localSqlVersion = $this->getLocalSqlVersion();
         if (!empty($remoteSqlVersion) && $remoteSqlVersion !== $localSqlVersion) {
             $sqlResp = $this->getRemoteSql();
             if ($sqlResp['code'] == 200 && !empty($sqlResp['data']['sql'])) {
-                $sqlExecResult = $this->executeSql($sqlResp['data']['sql']);
-                $sqlResult = $sqlExecResult['message'];
-                $sqlSuccess = $sqlExecResult['success'];
-                // 只有 SQL 全部执行成功才更新版本号，失败则保留旧版本号以便下次重试
-                if ($sqlSuccess) {
-                    $this->setLocalSqlVersion($remoteSqlVersion);
-                }
+                $sqlResult = $this->executeSql($sqlResp['data']['sql']);
+                $this->setLocalSqlVersion($remoteSqlVersion);
             }
         }
 
@@ -541,12 +406,11 @@ class Upgrade
 
         return [
             'code' => 200,
-            'message' => $sqlSuccess ? '更新完成' : '代码更新完成，但数据库迁移失败，下次更新将自动重试',
+            'message' => '更新完成',
             'data' => [
                 'updated' => count($downloaded),
                 'deleted' => count($deleteFiles),
                 'sql_result' => $sqlResult,
-                'sql_success' => $sqlSuccess,
                 'new_version' => $remoteVersion,
             ],
         ];
@@ -554,9 +418,8 @@ class Upgrade
 
     /**
      * 执行 SQL 脚本(按分号分割)
-     * 返回结构化结果，包含成功/失败数量和错误详情
      */
-    public function executeSql(string $sql): array
+    public function executeSql(string $sql): string
     {
         $sql = str_replace(["\r\n", "\r"], "\n", $sql);
         $statements = [];
@@ -577,60 +440,15 @@ class Upgrade
         }
         $ok = 0;
         $fail = 0;
-        $errors = [];
         foreach ($statements as $stmt) {
             try {
                 Db::execute($stmt);
                 $ok++;
             } catch (\Throwable $e) {
-                $msg = $e->getMessage();
-                // 忽略"已存在"类错误，保证幂等性（ALTER TABLE ADD COLUMN/KEY 重复执行时会出现）
-                if (preg_match('/Duplicate column name|Duplicate key name|already exists/i', $msg)) {
-                    $ok++;
-                    continue;
-                }
                 $fail++;
-                $errors[] = $msg;
             }
         }
-        return [
-            'success' => $fail === 0,
-            'ok'      => $ok,
-            'fail'    => $fail,
-            'errors'  => $errors,
-            'message' => "成功{$ok}条,失败{$fail}条" . ($fail > 0 ? '，失败原因: ' . implode(' | ', array_slice($errors, 0, 5)) : ''),
-        ];
-    }
-
-    /**
-     * 手动执行本地 upgrade.sql 数据库迁移
-     * 适用于直接拷贝文件到其他服务器后，手动执行数据库更新
-     */
-    public function runLocalSqlUpdate(): array
-    {
-        $sqlFile = $this->rootPath . 'upgrade.sql';
-        if (!is_file($sqlFile)) {
-            return ['code' => 404, 'message' => 'upgrade.sql 文件不存在', 'data' => null];
-        }
-        $sql = file_get_contents($sqlFile);
-        if (empty(trim($sql))) {
-            return ['code' => 200, 'message' => 'upgrade.sql 为空，无需执行', 'data' => ['sql_result' => '空文件', 'sql_success' => true]];
-        }
-        $result = $this->executeSql($sql);
-        // 执行成功后更新 .sql_version 为当前日期
-        if ($result['success']) {
-            $this->setLocalSqlVersion(date('Ymd'));
-        }
-        return [
-            'code' => $result['success'] ? 200 : 500,
-            'message' => $result['success'] ? '数据库更新完成' : '数据库更新部分失败',
-            'data' => [
-                'sql_result' => $result['message'],
-                'sql_success' => $result['success'],
-                'ok' => $result['ok'],
-                'fail' => $result['fail'],
-            ],
-        ];
+        return "成功{$ok}条,失败{$fail}条";
     }
 
     /**

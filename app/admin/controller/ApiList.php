@@ -21,11 +21,11 @@ class ApiList extends QfShop
         ];
         $this->insertFields = [
             //允许添加的字段列表
-            "name","type","url","method","fixed_params","headers","auth_enabled","auth_username","auth_password","field_map","status","weight","pantype","count","html_item","html_title","html_url","html_type","html_url2"
+            "name","type","url","method","fixed_params","headers","field_map","status","weight","pantype","count","html_item","html_title","html_url","html_type","html_url2"
         ];
         $this->updateFields = [
             //允许更新的字段列表
-            "name","type","url","method","fixed_params","headers","auth_enabled","auth_username","auth_password","field_map","status","weight","pantype","count","html_item","html_title","html_url","html_type","html_url2"
+            "name","type","url","method","fixed_params","headers","field_map","status","weight","pantype","count","html_item","html_title","html_url","html_type","html_url2"
         ];
         $this->insertRequire = [
             //添加时必须填写的字段

@@ -1,0 +1,626 @@
+{include file="simple/common/header"}
+<meta name="referrer" content="never">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/index.css">
+    <style>
+    .novel-rank-wrap {
+        background: var(--theme-card-gradient);
+        border: 1px solid var(--theme-border);
+        border-radius: 18px;
+        padding: 24px 26px 20px;
+        margin: 8px 0 22px;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+    }
+    .novel-rank-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--theme-text);
+        margin-bottom: 6px;
+    }
+    .novel-rank-title .icon-book {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #e8a547, #f6c66a);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #1a1a1a;
+        font-size: 16px;
+    }
+    .novel-rank-tip {
+        font-size: 13px;
+        color: var(--theme-text-secondary);
+        margin-bottom: 16px;
+    }
+    .novel-rank-tabs {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+    }
+    .novel-rank-tabs button {
+        background: var(--theme-input-bg);
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-secondary);
+        border-radius: 10px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+    .novel-rank-tabs button:hover { color: #e8a547; border-color: #e8a547; }
+    .novel-rank-tabs button.active {
+        background: linear-gradient(135deg, #e8a547, #f6c66a);
+        border-color: transparent;
+        color: #1a1a1a;
+    }
+    .novel-category-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .novel-category-list button {
+        background: transparent;
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-secondary);
+        border-radius: 999px;
+        padding: 5px 13px;
+        font-size: 12.5px;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+    .novel-category-list button:hover { color: #e8a547; border-color: #e8a547; }
+    .novel-category-list button.active {
+        background: rgba(232, 165, 71, 0.14);
+        border-color: #e8a547;
+        color: #e8a547;
+        font-weight: 600;
+    }
+    .novel-rank-section {
+        margin-top: 16px;
+        background: var(--theme-surface);
+        border: 1px solid var(--theme-border);
+        border-radius: 16px;
+        padding: 16px;
+    }
+    .novel-rank-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--theme-border);
+    }
+    .novel-rank-heading {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--theme-text);
+    }
+    .novel-rank-heading-icon { color: #e8a547; }
+    .novel-rank-count { font-size: 12px; color: var(--theme-text-secondary); }
+    .novel-result-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 16px;
+    }
+    .novel-card {
+        background: var(--theme-card-gradient);
+        border: 1px solid var(--theme-border);
+        border-radius: 14px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: transform .25s ease, box-shadow .25s ease;
+        display: flex;
+        flex-direction: column;
+    }
+    .novel-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+    }
+    .novel-card-cover {
+        width: 100%;
+        aspect-ratio: 3 / 4;
+        background: #1a2538;
+        position: relative;
+        overflow: hidden;
+    }
+    .novel-card-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .novel-card-cover .novel-card-fallback {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        color: #5a6a80; font-size: 13px;
+    }
+    .novel-card-info {
+        padding: 10px 12px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+    }
+    .novel-card-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--theme-text);
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .novel-card-author {
+        font-size: 12px;
+        color: var(--theme-text-secondary);
+    }
+    .novel-card-latest {
+        font-size: 11px;
+        color: #e8a547;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        margin-top: 2px;
+    }
+    .novel-card-source {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        padding: 2px 8px;
+        background: rgba(0, 0, 0, 0.55);
+        color: #f6c66a;
+        font-size: 11px;
+        border-radius: 6px;
+        max-width: calc(100% - 16px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .novel-rank-badge {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 2;
+        min-width: 24px;
+        height: 24px;
+        padding: 0 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 7px;
+        font-size: 13px;
+        font-weight: 700;
+        background: rgba(0, 0, 0, 0.55);
+        color: #f6c66a;
+    }
+    .novel-rank-badge.top-1 { background: linear-gradient(135deg, #f5a623, #ffd24d); color: #1a1a1a; }
+    .novel-rank-badge.top-2 { background: linear-gradient(135deg, #b9c2d0, #e3e9f2); color: #26324a; }
+    .novel-rank-badge.top-3 { background: linear-gradient(135deg, #cd8a4e, #e8b088); color: #2b1a0e; }
+    .novel-loading,
+    .novel-empty {
+        padding: 60px 0;
+        text-align: center;
+        color: var(--theme-text-secondary);
+        font-size: 14px;
+    }
+    .novel-loading .spinner {
+        display: inline-block;
+        width: 28px;
+        height: 28px;
+        border: 3px solid var(--theme-border);
+        border-top-color: #e8a547;
+        border-radius: 50%;
+        animation: novel-spin 0.8s linear infinite;
+        margin-bottom: 12px;
+    }
+    @keyframes novel-spin { to { transform: rotate(360deg); } }
+
+    /* 下载中悬浮入口 */
+    .novel-dl-fab {
+        position: fixed;
+        right: 26px;
+        bottom: 90px;
+        z-index: 1200;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 18px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #e8a547, #f6c66a);
+        color: #1a1a1a;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 10px 26px rgba(232, 165, 71, 0.4);
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .novel-dl-fab:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(232, 165, 71, 0.5); }
+    .novel-dl-fab .novel-dl-badge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: #ff4d4f;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .novel-dl-fab .novel-dl-icon {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2.5px solid #1a1a1a;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: novel-spin 0.9s linear infinite;
+    }
+
+    /* 独立模块 novel-downloader.js 渲染的悬浮入口 + 面板（跨页面使用） */
+    #novel-downloader-root {
+        position: fixed;
+        z-index: 1200;
+    }
+    #novel-downloader-root .novel-dl-fab {
+        position: fixed;
+        right: 26px;
+        bottom: 90px;
+        z-index: 1200;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 18px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #e8a547, #f6c66a);
+        color: #1a1a1a;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 10px 26px rgba(232, 165, 71, 0.4);
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    #novel-downloader-root .novel-dl-fab:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 32px rgba(232, 165, 71, 0.5);
+    }
+    #novel-downloader-root .novel-dl-badge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        background: #ff4d4f;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    #novel-downloader-root .novel-dl-icon {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2.5px solid #1a1a1a;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: novel-spin 0.9s linear infinite;
+    }
+    #novel-downloader-root .novel-dl-panel {
+        position: fixed;
+        right: 26px;
+        bottom: 160px;
+        z-index: 1201;
+        width: 480px;
+        max-width: calc(100vw - 32px);
+        max-height: 70vh;
+        background: var(--theme-surface, #141E2E);
+        color: var(--theme-text, #F2EEDC);
+        border: 1px solid var(--theme-border, #2A3A52);
+        border-radius: 14px;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    #novel-downloader-root .novel-dl-panel-mask {
+        display: none;
+    }
+    #novel-downloader-root .novel-dl-panel-box {
+        display: flex;
+        flex-direction: column;
+        max-height: inherit;
+    }
+    #novel-downloader-root .novel-dl-panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--theme-border, #2A3A52);
+        font-size: 15px;
+        font-weight: 700;
+    }
+    #novel-downloader-root .novel-dl-close {
+        background: transparent;
+        border: none;
+        color: var(--theme-text-secondary, #8B9BB4);
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    #novel-downloader-root .novel-dl-list {
+        padding: 12px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    #novel-downloader-root .novel-dl-item {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        background: var(--theme-card, #1A2538);
+        border: 1px solid var(--theme-border, #2A3A52);
+        border-radius: 10px;
+    }
+    #novel-downloader-root .novel-dl-cover {
+        width: 52px;
+        height: 70px;
+        flex-shrink: 0;
+        border-radius: 6px;
+        overflow: hidden;
+        background: var(--theme-background, #0E1620);
+        border: 1px solid var(--theme-border, #2A3A52);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    #novel-downloader-root .novel-dl-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    #novel-downloader-root .novel-dl-cover.no-cover .novel-dl-cover-fallback,
+    #novel-downloader-root .novel-dl-cover-fallback {
+        font-size: 11px;
+        color: var(--theme-text-secondary, #8B9BB4);
+    }
+    #novel-downloader-root .novel-dl-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    #novel-downloader-root .novel-dl-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--theme-text, #F2EEDC);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    #novel-downloader-root .novel-dl-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--theme-text-secondary, #8B9BB4);
+        flex-wrap: wrap;
+    }
+    #novel-downloader-root .novel-dl-stage {
+        font-weight: 600;
+        padding: 1px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+    }
+    #novel-downloader-root .novel-dl-stage.stage-downloading,
+    #novel-downloader-root .novel-dl-stage.stage-uploading,
+    #novel-downloader-root .novel-dl-stage.stage-queued {
+        color: #e8a547;
+    }
+    #novel-downloader-root .novel-dl-stage.stage-done { color: #67c23a; }
+    #novel-downloader-root .novel-dl-stage.stage-fail { color: #f56c6c; }
+    #novel-downloader-root .novel-dl-acc {
+        font-size: 11px;
+        color: var(--theme-text-secondary, #8B9BB4);
+        background: rgba(232, 165, 71, 0.12);
+        padding: 1px 6px;
+        border-radius: 4px;
+    }
+    #novel-downloader-root .novel-dl-bar {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+    #novel-downloader-root .novel-dl-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #e8a547, #f6c66a);
+        transition: width 0.3s ease;
+    }
+    #novel-downloader-root .novel-dl-msg {
+        font-size: 12px;
+        color: var(--theme-text-secondary, #8B9BB4);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    #novel-downloader-root .novel-dl-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+    #novel-downloader-root .novel-dl-btn {
+        background: transparent;
+        border: 1px solid var(--theme-border, #2A3A52);
+        color: var(--theme-text-secondary, #8B9BB4);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+    #novel-downloader-root .novel-dl-btn:hover {
+        color: #e8a547;
+        border-color: #e8a547;
+    }
+    #novel-downloader-root .novel-dl-btn.primary {
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #e8a547, #f6c66a);
+        border-color: transparent;
+        font-weight: 600;
+    }
+    #novel-downloader-root .novel-dl-btn.danger {
+        color: #f56c6c;
+        border-color: rgba(245, 108, 108, 0.3);
+    }
+    #novel-downloader-root .novel-dl-btn.danger:hover {
+        color: #fff;
+        background: rgba(245, 108, 108, 0.2);
+        border-color: #f56c6c;
+    }
+    @media (max-width: 640px) {
+        #novel-downloader-root .novel-dl-panel { right: 16px; left: 16px; width: auto; }
+        #novel-downloader-root .novel-dl-fab { right: 16px; bottom: 16px; }
+    }
+
+    /* 下载进度面板（弹窗底色由 base.css 统一主题化，内部配色跟随主题变量） */
+    .novel-dl-panel .el-dialog__header { padding-bottom: 10px; }
+    .novel-dl-list { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
+    .novel-dl-item {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        background: var(--theme-card);
+        border: 1px solid var(--theme-border);
+        border-radius: 10px;
+    }
+    .novel-dl-cover {
+        width: 52px;
+        height: 70px;
+        border-radius: 6px;
+        overflow: hidden;
+        flex-shrink: 0;
+        background: var(--theme-background);
+        border: 1px solid var(--theme-border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--theme-text-secondary);
+        font-size: 11px;
+    }
+    .novel-dl-cover img { width: 100%; height: 100%; object-fit: cover; }
+    .novel-dl-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    .novel-dl-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--theme-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .novel-dl-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--theme-text-secondary); }
+    .novel-dl-stage { font-weight: 600; }
+    .novel-dl-stage.downloading, .novel-dl-stage.uploading, .novel-dl-stage.starting { color: #e8a547; }
+    .novel-dl-stage.done { color: #67c23a; }
+    .novel-dl-stage.fail { color: #f56c6c; }
+    .novel-dl-msg { font-size: 12px; color: var(--theme-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .novel-dl-panel .el-progress-bar__outer { background-color: rgba(255, 255, 255, 0.1); }
+    .novel-dl-actions { display: flex; gap: 8px; margin-top: 2px; }
+    .novel-dl-actions button {
+        background: transparent;
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-secondary);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+    .novel-dl-actions button:hover { color: #e8a547; border-color: #e8a547; }
+    .novel-dl-empty { padding: 40px 0; text-align: center; color: var(--theme-text-secondary); font-size: 13px; }
+
+    @media (max-width: 640px) {
+        .novel-card-cover { aspect-ratio: 2 / 3; }
+        .novel-result-list { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+    }
+    </style>
+</head>
+
+<body>
+    <div class="headBg" style="background-image: url({$config.home_bg});display:none;"></div>
+    <div id="app" v-cloak>
+        {include file="simple/common/navbar"}
+
+        <div class="home-container">
+            <div class="novel-rank-wrap">
+                <div class="novel-rank-title">
+                    <span class="icon-book"><i class="el-icon-reading"></i></span>
+                    <span>番茄小说榜</span>
+                </div>
+                <div class="novel-rank-tip">番茄小说官方排行数据，涵盖男频、女频阅读榜与新书榜，点击卡片可搜索全网资源。</div>
+                <div class="novel-rank-tabs">
+                    <button v-for="(tab, key) in novelTabs" :key="key" type="button"
+                        :class="{ active: novelTab === key }" @click="switchNovelTab(key)">{{ tab.label }}</button>
+                </div>
+                <div class="novel-category-list" v-if="novelCategories.length">
+                    <button v-for="cat in novelCategories" :key="cat.id" type="button"
+                        :class="{ active: novelCategoryId === cat.id }" @click="switchNovelCategory(cat.id)">{{ cat.name }}</button>
+                </div>
+            </div>
+
+            <div class="novel-rank-section">
+                <div class="novel-rank-header">
+                    <div class="novel-rank-heading">
+                        <span class="novel-rank-heading-icon">~</span>
+                        <span>{{ novelTabLabel }}</span>
+                    </div>
+                    <span class="novel-rank-count">共 {{ novelBooks.length }} 本</span>
+                </div>
+                <div v-if="novelLoading" class="novel-loading">
+                    <div class="spinner"></div>
+                    <div>榜单加载中...</div>
+                </div>
+                <div v-else-if="!novelBooks.length" class="novel-empty">暂无榜单数据，请稍后重试</div>
+                <div v-else class="novel-result-list">
+                    <div class="novel-card" v-for="(book, idx) in novelBooks" :key="book.id || idx" @click="openNovelBook(book)">
+                        <div class="novel-card-cover">
+                            <span v-if="book.rank" class="novel-rank-badge" :class="book.rank <= 3 ? 'top-' + book.rank : ''">{{ book.rank }}</span>
+                            <img v-if="book.cover" :src="book.cover" :alt="book.title" loading="lazy" @error="book.cover=''" />
+                            <div v-else class="novel-card-fallback">暂无封面</div>
+                        </div>
+                        <div class="novel-card-info">
+                            <div class="novel-card-title">{{ book.title || '未知' }}</div>
+                            <div class="novel-card-author" v-if="book.author">{{ book.author }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 下载中悬浮入口 + 面板由 novel-downloader.js 独立模块管理（持久化、跨页面、多用户隔离） -->
+        {include file="simple/common/foot"}
+    </div>
+    <script>window.__NOVEL_PAGE__ = true;document.body.classList.add('novel-page');</script>
+    <style>/* 小说页单一线路：隐藏搜索结果中的"切换线路"入口，避免回到线路选择 */body.novel-page .search-dialog-back{display:none!important}</style>
+    {include file="simple/common/scripts"}
+</body>
+
+</html>

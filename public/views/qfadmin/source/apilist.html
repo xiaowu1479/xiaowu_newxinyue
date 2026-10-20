@@ -19,11 +19,19 @@
     .pan-radio-group { display: flex !important; flex-wrap: wrap; gap: 8px; }
     .pan-radio-group .el-radio.is-bordered { margin: 0 !important; border-radius: 6px; }
     .pan-radio-group .el-radio.is-bordered.is-checked { border-color: #6366f1; background: #eef2ff; }
-    .line-dialog .el-row { margin: 0 !important; min-height: 620px; }
-    .line-dialog .el-row .el-col + .el-col { border-left: 1px solid #f0f0f0; }
-    .line-dialog .el-textarea__inner { min-height: 120px !important; }
-    .line-dialog .headers-input .el-textarea__inner { min-height: 60px !important; }
-    .line-dialog .params-input .el-textarea__inner { min-height: 96px !important; }
+    /* 小说配置：网盘图标（base64）+ 品牌色圆点兜底 */
+    .novel-cfg .pan-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; flex-shrink: 0; }
+    .novel-cfg .pan-icon-img { width: 16px; height: 16px; border-radius: 3px; margin-right: 6px; vertical-align: -3px; object-fit: contain; }
+    .novel-cfg .novel-cfg-acc-id { color: #94a3b8; font-size: 11px; margin-left: 6px; }
+    .novel-cfg .novel-cfg-acc-name { color: #606266; }
+    .novel-cfg .el-checkbox { display: flex; align-items: center; margin: 0 0 6px 0; }
+    .novel-cfg .el-checkbox .el-checkbox__label { display: inline-flex; align-items: center; }
+    /* 添加账户：驱动卡片网格 */
+    .novel-cfg-drive-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .novel-cfg-drive-card { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid #e4e7ed; border-radius: 6px; cursor: pointer; transition: all .2s ease; }
+    .novel-cfg-drive-card:hover { border-color: #6366f1; }
+    .novel-cfg-drive-card.active { border-color: #6366f1; background: #eef2ff; }
+    .novel-cfg-drive-card .pan-icon-img { width: 18px; height: 18px; }
     </style>
     {include file="common/header"/}
     <div class="source-panel api-list-panel">
@@ -33,6 +41,7 @@
                     <el-button icon="el-icon-plus" size="small" @click="clickAdd" plain>添加</el-button>
                     <el-button icon="el-icon-delete" size="small" @click="batchDelete" plain :disabled="selectList.length === 0">批量删除</el-button>
                     <el-button icon="el-icon-refresh" size="small" @click="getList" plain>刷新</el-button>
+                    <el-button icon="el-icon-setting" size="small" @click="NovelConfigShow" plain>小说配置</el-button>
                     <el-input v-model="searchKeyword" placeholder="搜索线路名称" prefix-icon="el-icon-search" size="small" style="width: 180px;" clearable @clear="getList" @keyup.enter.native="getList"></el-input>
                     <el-button icon="el-icon-search" size="small" @click="getList" plain>搜索</el-button>
                 </el-form-item>
@@ -83,145 +92,137 @@
 
 
     <!-- 添加框 -->
-    <el-dialog title="添加线路" :visible.sync="dialogFormAdd" width="1100px" :modal-append-to-body='false' append-to-body
+    <el-dialog title="添加线路" :visible.sync="dialogFormAdd" width="750px" :modal-append-to-body='false' append-to-body
         :close-on-click-modal='false' custom-class="line-dialog">
         <el-form :model="formAdd" :rules="rules" ref="formAdd" :label-width="formLabelWidth">
-            <el-row :gutter="24">
-                <el-col :span="10">
-                    <div class="form-section-title">基础信息</div>
 
-                    <el-form-item prop="pantype" label="网盘类型">
-                        <el-radio-group v-model="formAdd.pantype" @change="updatePanParams('formAdd')" class="pan-radio-group">
-                            <el-radio v-for="pan in panTypes" :key="pan.id" :label="pan.id" border size="small">{{ pan.name }}</el-radio>
-                        </el-radio-group>
-                    </el-form-item>
+            <div class="form-section-title">基础信息</div>
 
-                    <el-form-item prop="name" label="线路名称">
-                        <el-input size="medium" autocomplete="off" v-model="formAdd.name" placeholder="如：夸克网盘"></el-input>
-                    </el-form-item>
+            <el-form-item prop="pantype" label="网盘类型">
+                <el-radio-group v-model="formAdd.pantype" @change="updatePanParams('formAdd')" class="pan-radio-group">
+                    <el-radio v-for="pan in panTypes" :key="pan.id" :label="pan.id" border size="small">{{ pan.name }}</el-radio>
+                </el-radio-group>
+            </el-form-item>
 
-                    <el-form-item prop="count" label="总数限制">
-                        <el-input-number v-model="formAdd.count" :min="0" :max="999" size="medium" style="width: 120px;"
-                            controls-position="right"></el-input-number>
-                        <span class="form-tip" style="margin-left: 8px;">建议最大设置为 5，即该接口最多只获取 5 条数据</span>
-                    </el-form-item>
+            <el-form-item prop="name" label="线路名称">
+                <el-input size="medium" autocomplete="off" v-model="formAdd.name" placeholder="如：夸克网盘"></el-input>
+            </el-form-item>
 
-                    <div class="form-section-title">接口配置</div>
+            <el-form-item prop="count" label="总数限制">
+                <el-input-number v-model="formAdd.count" :min="0" :max="999" size="medium" style="width: 120px;"
+                    controls-position="right"></el-input-number>
+                <span class="form-tip" style="margin-left: 8px;">建议最大设置为 5，即该接口最多只获取 5 条数据</span>
+            </el-form-item>
 
-                    <el-form-item prop="type" label="类型">
-                        <el-radio-group v-model="formAdd.type">
-                            <el-radio label="api">API接口</el-radio>
-                            <el-radio label="tg">TG频道</el-radio>
-                            <el-radio label="html">网页爬虫</el-radio>
-                        </el-radio-group>
-                        <div class="form-tip form-tip-error" v-if="formAdd.type=='html'">不推荐！网页爬虫配置复杂，功能由AI编写，如无法获取也没办法</div>
-                        <div class="form-tip form-tip-warn" v-else-if="formAdd.type=='tg'">国内服务器无法使用；比如 https://t.me/s/NewQuark 就填写 NewQuark 即可</div>
-                    </el-form-item>
+            <div class="form-section-title">接口配置</div>
 
-                    <div class="form-section-title">高级设置</div>
+            <el-form-item prop="type" label="类型">
+                <el-radio-group v-model="formAdd.type">
+                    <el-radio label="api">API接口</el-radio>
+                    <el-radio label="tg">TG频道</el-radio>
+                    <el-radio label="html">网页爬虫</el-radio>
+                    <el-radio label="novel">小说线路</el-radio>
+                </el-radio-group>
+                <div class="form-tip form-tip-error" v-if="formAdd.type=='html'">不推荐！网页爬虫配置复杂，功能由AI编写，如无法获取也没办法</div>
+                <div class="form-tip form-tip-warn" v-else-if="formAdd.type=='tg'">国内服务器无法使用；比如 https://t.me/s/NewQuark 就填写 NewQuark 即可</div>
+                <div class="form-tip form-tip-warn" v-else-if="formAdd.type=='novel'">调用 no-novel-node 的 /search/aggregated 聚合搜索；接口地址可填完整 URL（含端口）；token 可选，留空则不携带鉴权头</div>
+            </el-form-item>
 
-                    <el-form-item prop="weight" label="排序">
-                        <el-input-number v-model="formAdd.weight" :min="0" :max="999" size="medium" style="width: 120px;"
-                            controls-position="right" />
-                        <span class="form-tip" style="margin-left: 8px;">数值越小越靠前</span>
-                    </el-form-item>
+            <el-form-item prop="url" label="TG频道" v-if="formAdd.type === 'tg'">
+                <el-input size="medium" autocomplete="off" v-model="formAdd.url" placeholder="如：NewQuark"></el-input>
+            </el-form-item>
+            <el-form-item prop="url" label="目标网址" v-else-if="formAdd.type === 'html'">
+                <el-input size="medium" autocomplete="off" v-model="formAdd.url" placeholder="https://www.baidu.com/s?wd={keyword}"></el-input>
+                <div class="form-tip">{keyword} 是固定词请勿修改</div>
+            </el-form-item>
+            <el-form-item prop="url" label="小说地址" v-else-if="formAdd.type === 'novel'">
+                <el-input size="medium" autocomplete="off" v-model="formAdd.url" placeholder="如：http://127.0.0.1:7766"></el-input>
+                <div class="form-tip">不包含 /search/aggregated 路径；可填 http://IP:端口 或完整 http://域名</div>
+            </el-form-item>
+            <el-form-item prop="url" label="接口地址" v-else>
+                <el-input size="medium" autocomplete="off" v-model="formAdd.url" placeholder="https://..."></el-input>
+            </el-form-item>
 
-                    <el-form-item prop="status" label="是否启用">
-                        <el-switch v-model="formAdd.status" size="medium" />
-                    </el-form-item>
-                </el-col>
+            <block v-if="formAdd.type === 'novel'">
+                <el-form-item prop="num" label="返回条数">
+                    <el-input-number v-model="formAdd.count" :min="0" :max="50" size="medium" style="width: 120px;"
+                        controls-position="right"></el-input-number>
+                    <span class="form-tip" style="margin-left: 8px;">限制单次返回的最大结果数</span>
+                </el-form-item>
+            </block>
 
-                <el-col :span="14">
-                    <div class="form-section-title">API地址</div>
+            <block v-if="formAdd.type === 'api' && false">
+                <el-form-item prop="method" label="请求方式">
+                    <el-radio-group v-model="formAdd.method">
+                        <el-radio label="GET">GET</el-radio>
+                        <el-radio label="POST">POST</el-radio>
+                    </el-radio-group>
+                </el-form-item>
 
-                    <el-form-item prop="url" label="TG频道" v-if="formAdd.type === 'tg'">
-                        <el-input size="medium" autocomplete="off" v-model="formAdd.url" placeholder="如：NewQuark"></el-input>
-                    </el-form-item>
-                    <el-form-item prop="url" label="目标网址" v-else-if="formAdd.type === 'html'">
-                        <el-input size="medium" autocomplete="off" v-model="formAdd.url" placeholder="https://www.baidu.com/s?wd={keyword}"></el-input>
-                        <div class="form-tip">{keyword} 是固定词请勿修改</div>
-                    </el-form-item>
-                    <el-form-item prop="url" label="接口地址" v-else>
-                        <el-input size="medium" autocomplete="off" v-model="formAdd.url" placeholder="https://..."></el-input>
-                    </el-form-item>
+                <el-form-item prop="headers" label="请求头">
+                    <el-input type="textarea" v-model="formAdd.headers" :rows="3" placeholder='{"User-Agent": "..."}' />
+                </el-form-item>
 
-                    <block v-if="formAdd.type === 'api'">
-                        <div class="form-section-title">接口参数</div>
+                <el-form-item prop="fixed_params" label="接口参数">
+                    <el-input type="textarea" v-model="formAdd.fixed_params" :rows="3"
+                        placeholder='{"search": "{keyword}"}'></el-input>
+                    <div class="form-tip">将 search 改为实际的搜索字段即可，{keyword} 请勿修改</div>
+                </el-form-item>
 
-                        <el-form-item prop="method" label="请求方式">
-                            <el-radio-group v-model="formAdd.method">
-                                <el-radio label="GET">GET</el-radio>
-                                <el-radio label="POST">POST</el-radio>
-                            </el-radio-group>
-                        </el-form-item>
+                <el-form-item prop="field_map" label="字段映射">
+                    <el-input type="textarea" v-model="formAdd.field_map" :rows="7"
+                        placeholder='{"title": "xxx", "url": "xxx"}'></el-input>
+                    <div class="form-tip">结构参数名请勿修改，仅将中文修改为真实接口的字段名；数组字段一般是 data 或 data.list</div>
+                </el-form-item>
+            </block>
 
-                        <el-form-item prop="headers" label="请求头">
-                            <el-input type="textarea" class="headers-input" v-model="formAdd.headers" :rows="3" placeholder='{"User-Agent": "..."}' />
-                        </el-form-item>
+            <block v-if="formAdd.type === 'html'">
+                <el-form-item prop="html_item" label="内容标签">
+                    <el-input size="medium" autocomplete="off" v-model="formAdd.html_item" placeholder="如：div+item"></el-input>
+                    <div class="form-tip">
+                        用于循环内容的 HTML 标签和 class，格式：标签名+class名<br>
+                        示例：div+item、article+post、li+result-item hot
+                    </div>
+                </el-form-item>
 
-                        <el-form-item prop="auth_enabled" label="开启认证">
-                            <el-switch v-model="formAdd.auth_enabled" :active-value="1" :inactive-value="0" size="medium" />
-                            <span class="form-tip" style="margin-left: 8px;">开启后自动从接口地址拼接认证地址</span>
-                        </el-form-item>
+                <el-form-item prop="html_title" label="标题标签">
+                    <el-input size="medium" autocomplete="off" v-model="formAdd.html_title" placeholder="如：h3+title"></el-input>
+                    <div class="form-tip">
+                        循环项中提取标题文字的元素，格式：标签名+class名<br>
+                        示例：h3+title、a+link、div+content-title
+                    </div>
+                </el-form-item>
 
-                        <el-form-item prop="auth_username" label="认证用户" v-if="formAdd.auth_enabled">
-                            <el-input size="medium" autocomplete="off" v-model="formAdd.auth_username" placeholder="admin"></el-input>
-                        </el-form-item>
+                <el-form-item prop="html_type" label="详情页">
+                    <el-radio-group v-model="formAdd.html_type">
+                        <el-radio :label="0">不需要</el-radio>
+                        <el-radio :label="1">需要</el-radio>
+                    </el-radio-group>
+                    <div class="form-tip">网盘链接不在列表页中、需进入详情页获取时选择"需要"</div>
+                </el-form-item>
 
-                        <el-form-item prop="auth_password" label="认证密码" v-if="formAdd.auth_enabled">
-                            <el-input size="medium" autocomplete="off" v-model="formAdd.auth_password" placeholder="admin123" show-password></el-input>
-                        </el-form-item>
+                <el-form-item prop="html_url" label="详情页标签" v-if="formAdd.html_type==1">
+                    <el-input size="medium" autocomplete="off" v-model="formAdd.html_url" placeholder="如：a+post_url"></el-input>
+                    <div class="form-tip">格式：a+class名，只能 a 标签。如 a+post_url 获取 href 属性值</div>
+                </el-form-item>
 
-                        <el-form-item prop="fixed_params" label="接口参数">
-                            <el-input type="textarea" class="params-input" v-model="formAdd.fixed_params" :rows="3"
-                                placeholder='{"search": "{keyword}"}'></el-input>
-                            <div class="form-tip">将 search 改为实际的搜索字段即可，{keyword} 请勿修改</div>
-                        </el-form-item>
+                <el-form-item prop="html_url2" label="网盘链接">
+                    <el-input size="medium" autocomplete="off" v-model="formAdd.html_url2" placeholder="如：a+down-link"></el-input>
+                    <div class="form-tip">循环项中提取网盘链接的元素，格式：标签名+class名</div>
+                </el-form-item>
+            </block>
 
-                        <el-form-item prop="field_map" label="字段映射">
-                            <el-input type="textarea" v-model="formAdd.field_map" :rows="7"
-                                placeholder='{"title": "xxx", "url": "xxx"}'></el-input>
-                            <div class="form-tip">结构参数名请勿修改，仅将中文修改为真实接口的字段名；数组字段一般是 data 或 data.list</div>
-                        </el-form-item>
-                    </block>
+            <div class="form-section-title">高级设置</div>
 
-                    <block v-if="formAdd.type === 'html'">
-                        <el-form-item prop="html_item" label="内容标签">
-                            <el-input size="medium" autocomplete="off" v-model="formAdd.html_item" placeholder="如：div+item"></el-input>
-                            <div class="form-tip">
-                                用于循环内容的 HTML 标签和 class，格式：标签名+class名<br>
-                                示例：div+item、article+post、li+result-item hot
-                            </div>
-                        </el-form-item>
+            <el-form-item prop="weight" label="排序">
+                <el-input-number v-model="formAdd.weight" :min="0" :max="999" size="medium" style="width: 120px;"
+                    controls-position="right" />
+                <span class="form-tip" style="margin-left: 8px;">数值越小越靠前</span>
+            </el-form-item>
 
-                        <el-form-item prop="html_title" label="标题标签">
-                            <el-input size="medium" autocomplete="off" v-model="formAdd.html_title" placeholder="如：h3+title"></el-input>
-                            <div class="form-tip">
-                                循环项中提取标题文字的元素，格式：标签名+class名<br>
-                                示例：h3+title、a+link、div+content-title
-                            </div>
-                        </el-form-item>
-
-                        <el-form-item prop="html_type" label="详情页">
-                            <el-radio-group v-model="formAdd.html_type">
-                                <el-radio :label="0">不需要</el-radio>
-                                <el-radio :label="1">需要</el-radio>
-                            </el-radio-group>
-                            <div class="form-tip">网盘链接不在列表页中、需进入详情页获取时选择"需要"</div>
-                        </el-form-item>
-
-                        <el-form-item prop="html_url" label="详情页标签" v-if="formAdd.html_type==1">
-                            <el-input size="medium" autocomplete="off" v-model="formAdd.html_url" placeholder="如：a+post_url"></el-input>
-                            <div class="form-tip">格式：a+class名，只能 a 标签。如 a+post_url 获取 href 属性值</div>
-                        </el-form-item>
-
-                        <el-form-item prop="html_url2" label="网盘链接">
-                            <el-input size="medium" autocomplete="off" v-model="formAdd.html_url2" placeholder="如：a+down-link"></el-input>
-                            <div class="form-tip">循环项中提取网盘链接的元素，格式：标签名+class名</div>
-                        </el-form-item>
-                    </block>
-                </el-col>
-            </el-row>
+            <el-form-item prop="status" label="是否启用">
+                <el-switch v-model="formAdd.status" size="medium" />
+            </el-form-item>
         </el-form>
         <div slot="footer" class="dialog-footer">
             <el-button @click="dialogFormAdd = false">取 消</el-button>
@@ -229,145 +230,136 @@
         </div>
     </el-dialog>
     <!-- 修改框 -->
-    <el-dialog title="修改线路" :visible.sync="dialogFormEdit" width="1100px" :modal-append-to-body='false' append-to-body
+    <el-dialog title="修改线路" :visible.sync="dialogFormEdit" width="750px" :modal-append-to-body='false' append-to-body
         :close-on-click-modal='false' custom-class="line-dialog">
         <el-form :model="formEdit" :rules="rules" ref="formEdit" :label-width="formLabelWidth">
-            <el-row :gutter="24">
-                <el-col :span="10">
-                    <div class="form-section-title">基础信息</div>
 
-                    <el-form-item prop="pantype" label="网盘类型">
-                        <el-radio-group v-model="formEdit.pantype" @change="updatePanParams('formEdit')" class="pan-radio-group">
-                            <el-radio v-for="pan in panTypes" :key="pan.id" :label="pan.id" border size="small">{{ pan.name }}</el-radio>
-                        </el-radio-group>
-                    </el-form-item>
+            <div class="form-section-title">基础信息</div>
 
-                    <el-form-item prop="name" label="线路名称">
-                        <el-input size="medium" autocomplete="off" v-model="formEdit.name" placeholder="如：夸克网盘"></el-input>
-                    </el-form-item>
+            <el-form-item prop="pantype" label="网盘类型">
+                <el-radio-group v-model="formEdit.pantype" @change="updatePanParams('formEdit')" class="pan-radio-group">
+                    <el-radio v-for="pan in panTypes" :key="pan.id" :label="pan.id" border size="small">{{ pan.name }}</el-radio>
+                </el-radio-group>
+            </el-form-item>
+            <el-form-item prop="name" label="线路名称">
+                <el-input size="medium" autocomplete="off" v-model="formEdit.name" placeholder="如：夸克网盘"></el-input>
+            </el-form-item>
 
-                    <el-form-item prop="count" label="总数限制">
-                        <el-input-number v-model="formEdit.count" :min="0" :max="999" size="medium" style="width: 120px;"
-                            controls-position="right"></el-input-number>
-                        <span class="form-tip" style="margin-left: 8px;">建议最大设置为 5，即该接口最多只获取 5 条数据</span>
-                    </el-form-item>
+            <el-form-item prop="count" label="总数限制">
+                <el-input-number v-model="formEdit.count" :min="0" :max="999" size="medium" style="width: 120px;"
+                    controls-position="right"></el-input-number>
+                <span class="form-tip" style="margin-left: 8px;">建议最大设置为 5，即该接口最多只获取 5 条数据</span>
+            </el-form-item>
 
-                    <div class="form-section-title">接口配置</div>
+            <div class="form-section-title">接口配置</div>
 
-                    <el-form-item prop="type" label="类型">
-                        <el-radio-group v-model="formEdit.type">
-                            <el-radio label="api">API接口</el-radio>
-                            <el-radio label="tg">TG频道</el-radio>
-                            <el-radio label="html">网页爬虫</el-radio>
-                        </el-radio-group>
-                        <div class="form-tip form-tip-error" v-if="formEdit.type=='html'">不推荐！网页爬虫配置复杂，功能由AI编写，如无法获取也没办法</div>
-                        <div class="form-tip form-tip-warn" v-else-if="formEdit.type=='tg'">国内服务器无法使用；比如 https://t.me/s/NewQuark 就填写 NewQuark 即可</div>
-                    </el-form-item>
+            <el-form-item prop="type" label="类型">
+                <el-radio-group v-model="formEdit.type">
+                    <el-radio label="api">API接口</el-radio>
+                    <el-radio label="tg">TG频道</el-radio>
+                    <el-radio label="html">网页爬虫</el-radio>
+                    <el-radio label="novel">小说线路</el-radio>
+                </el-radio-group>
+                <div class="form-tip form-tip-error" v-if="formEdit.type=='html'">不推荐！网页爬虫配置复杂，功能由AI编写，如无法获取也没办法</div>
+                <div class="form-tip form-tip-warn" v-else-if="formEdit.type=='tg'">国内服务器无法使用；比如 https://t.me/s/NewQuark 就填写 NewQuark 即可</div>
+                <div class="form-tip form-tip-warn" v-else-if="formEdit.type=='novel'">调用 no-novel-node 的 /search/aggregated 聚合搜索；接口地址可填完整 URL（含端口）；token 可选，留空则不携带鉴权头</div>
+            </el-form-item>
 
-                    <div class="form-section-title">高级设置</div>
+            <el-form-item prop="url" label="TG频道" v-if="formEdit.type === 'tg'">
+                <el-input size="medium" autocomplete="off" v-model="formEdit.url" placeholder="如：NewQuark"></el-input>
+            </el-form-item>
+            <el-form-item prop="url" label="目标网址" v-else-if="formEdit.type === 'html'">
+                <el-input size="medium" autocomplete="off" v-model="formEdit.url" placeholder="https://www.baidu.com/s?wd={keyword}"></el-input>
+                <div class="form-tip">{keyword} 是固定词请勿修改</div>
+            </el-form-item>
+            <el-form-item prop="url" label="小说地址" v-else-if="formEdit.type === 'novel'">
+                <el-input size="medium" autocomplete="off" v-model="formEdit.url" placeholder="如：http://127.0.0.1:7766"></el-input>
+                <div class="form-tip">不包含 /search/aggregated 路径；可填 http://IP:端口 或完整 http://域名</div>
+            </el-form-item>
+            <el-form-item prop="url" label="接口地址" v-else>
+                <el-input size="medium" autocomplete="off" v-model="formEdit.url" placeholder="https://..."></el-input>
+            </el-form-item>
 
-                    <el-form-item prop="weight" label="排序">
-                        <el-input-number v-model="formEdit.weight" :min="0" :max="999" size="medium" style="width: 120px;"
-                            controls-position="right" />
-                        <span class="form-tip" style="margin-left: 8px;">数值越小越靠前</span>
-                    </el-form-item>
+            <block v-if="formEdit.type === 'novel'">
+                <el-form-item prop="num" label="返回条数">
+                    <el-input-number v-model="formEdit.count" :min="0" :max="50" size="medium" style="width: 120px;"
+                        controls-position="right"></el-input-number>
+                    <span class="form-tip" style="margin-left: 8px;">限制单次返回最大结果数</span>
+                </el-form-item>
+            </block>
 
-                    <el-form-item prop="status" label="是否启用">
-                        <el-switch v-model="formEdit.status" size="medium" />
-                    </el-form-item>
-                </el-col>
+            <block v-if="formEdit.type === 'api' && false">
+                <el-form-item prop="method" label="请求方式">
+                    <el-radio-group v-model="formEdit.method">
+                        <el-radio label="GET">GET</el-radio>
+                        <el-radio label="POST">POST</el-radio>
+                    </el-radio-group>
+                </el-form-item>
 
-                <el-col :span="14">
-                    <div class="form-section-title">API地址</div>
+                <el-form-item prop="headers" label="请求头">
+                    <el-input type="textarea" v-model="formEdit.headers" :rows="3" placeholder='{"User-Agent": "..."}' />
+                </el-form-item>
 
-                    <el-form-item prop="url" label="TG频道" v-if="formEdit.type === 'tg'">
-                        <el-input size="medium" autocomplete="off" v-model="formEdit.url" placeholder="如：NewQuark"></el-input>
-                    </el-form-item>
-                    <el-form-item prop="url" label="目标网址" v-else-if="formEdit.type === 'html'">
-                        <el-input size="medium" autocomplete="off" v-model="formEdit.url" placeholder="https://www.baidu.com/s?wd={keyword}"></el-input>
-                        <div class="form-tip">{keyword} 是固定词请勿修改</div>
-                    </el-form-item>
-                    <el-form-item prop="url" label="接口地址" v-else>
-                        <el-input size="medium" autocomplete="off" v-model="formEdit.url" placeholder="https://..."></el-input>
-                    </el-form-item>
+                <el-form-item prop="fixed_params" label="接口参数">
+                    <el-input type="textarea" v-model="formEdit.fixed_params" :rows="3"
+                        placeholder='{"search": "{keyword}"}'></el-input>
+                    <div class="form-tip">将 search 改为实际的搜索字段即可，{keyword} 请勿修改</div>
+                </el-form-item>
 
-                    <block v-if="formEdit.type === 'api'">
-                        <div class="form-section-title">接口参数</div>
+                <el-form-item prop="field_map" label="字段映射">
+                    <el-input type="textarea" v-model="formEdit.field_map" :rows="7"
+                        placeholder='{"title": "xxx", "url": "xxx"}'></el-input>
+                    <div class="form-tip">结构参数名请勿修改，仅将中文修改为真实接口的字段名；数组字段一般是 data 或 data.list</div>
+                </el-form-item>
+            </block>
 
-                        <el-form-item prop="method" label="请求方式">
-                            <el-radio-group v-model="formEdit.method">
-                                <el-radio label="GET">GET</el-radio>
-                                <el-radio label="POST">POST</el-radio>
-                            </el-radio-group>
-                        </el-form-item>
+            <block v-if="formEdit.type === 'html'">
+                <el-form-item prop="html_item" label="内容标签">
+                    <el-input size="medium" autocomplete="off" v-model="formEdit.html_item" placeholder="如：div+item"></el-input>
+                    <div class="form-tip">
+                        用于循环内容的 HTML 标签和 class，格式：标签名+class名<br>
+                        示例：div+item、article+post、li+result-item hot
+                    </div>
+                </el-form-item>
 
-                        <el-form-item prop="headers" label="请求头">
-                            <el-input type="textarea" class="headers-input" v-model="formEdit.headers" :rows="3" placeholder='{"User-Agent": "..."}' />
-                        </el-form-item>
+                <el-form-item prop="html_title" label="标题标签">
+                    <el-input size="medium" autocomplete="off" v-model="formEdit.html_title" placeholder="如：h3+title"></el-input>
+                    <div class="form-tip">
+                        循环项中提取标题文字的元素，格式：标签名+class名<br>
+                        示例：h3+title、a+link、div+content-title
+                    </div>
+                </el-form-item>
 
-                        <el-form-item prop="auth_enabled" label="开启认证">
-                            <el-switch v-model="formEdit.auth_enabled" :active-value="1" :inactive-value="0" size="medium" />
-                            <span class="form-tip" style="margin-left: 8px;">开启后自动从接口地址拼接认证地址</span>
-                        </el-form-item>
+                <el-form-item prop="html_type" label="详情页">
+                    <el-radio-group v-model="formEdit.html_type">
+                        <el-radio :label="0">不需要</el-radio>
+                        <el-radio :label="1">需要</el-radio>
+                    </el-radio-group>
+                    <div class="form-tip">网盘链接不在列表页中、需进入详情页获取时选择"需要"</div>
+                </el-form-item>
 
-                        <el-form-item prop="auth_username" label="认证用户" v-if="formEdit.auth_enabled">
-                            <el-input size="medium" autocomplete="off" v-model="formEdit.auth_username" placeholder="admin"></el-input>
-                        </el-form-item>
+                <el-form-item prop="html_url" label="详情页标签" v-if="formEdit.html_type==1">
+                    <el-input size="medium" autocomplete="off" v-model="formEdit.html_url" placeholder="如：a+post_url"></el-input>
+                    <div class="form-tip">格式：a+class名，只能 a 标签。如 a+post_url 获取 href 属性值</div>
+                </el-form-item>
 
-                        <el-form-item prop="auth_password" label="认证密码" v-if="formEdit.auth_enabled">
-                            <el-input size="medium" autocomplete="off" v-model="formEdit.auth_password" placeholder="admin123" show-password></el-input>
-                        </el-form-item>
+                <el-form-item prop="html_url2" label="网盘链接">
+                    <el-input size="medium" autocomplete="off" v-model="formEdit.html_url2" placeholder="如：a+down-link"></el-input>
+                    <div class="form-tip">循环项中提取网盘链接的元素，格式：标签名+class名</div>
+                </el-form-item>
+            </block>
 
-                        <el-form-item prop="fixed_params" label="接口参数">
-                            <el-input type="textarea" class="params-input" v-model="formEdit.fixed_params" :rows="3"
-                                placeholder='{"search": "{keyword}"}'></el-input>
-                            <div class="form-tip">将 search 改为实际的搜索字段即可，{keyword} 请勿修改</div>
-                        </el-form-item>
+            <div class="form-section-title">高级设置</div>
 
-                        <el-form-item prop="field_map" label="字段映射">
-                            <el-input type="textarea" v-model="formEdit.field_map" :rows="7"
-                                placeholder='{"title": "xxx", "url": "xxx"}'></el-input>
-                            <div class="form-tip">结构参数名请勿修改，仅将中文修改为真实接口的字段名；数组字段一般是 data 或 data.list</div>
-                        </el-form-item>
-                    </block>
+            <el-form-item prop="weight" label="排序">
+                <el-input-number v-model="formEdit.weight" :min="0" :max="999" size="medium" style="width: 120px;"
+                    controls-position="right" />
+                <span class="form-tip" style="margin-left: 8px;">数值越小越靠前</span>
+            </el-form-item>
 
-                    <block v-if="formEdit.type === 'html'">
-                        <el-form-item prop="html_item" label="内容标签">
-                            <el-input size="medium" autocomplete="off" v-model="formEdit.html_item" placeholder="如：div+item"></el-input>
-                            <div class="form-tip">
-                                用于循环内容的 HTML 标签和 class，格式：标签名+class名<br>
-                                示例：div+item、article+post、li+result-item hot
-                            </div>
-                        </el-form-item>
-
-                        <el-form-item prop="html_title" label="标题标签">
-                            <el-input size="medium" autocomplete="off" v-model="formEdit.html_title" placeholder="如：h3+title"></el-input>
-                            <div class="form-tip">
-                                循环项中提取标题文字的元素，格式：标签名+class名<br>
-                                示例：h3+title、a+link、div+content-title
-                            </div>
-                        </el-form-item>
-
-                        <el-form-item prop="html_type" label="详情页">
-                            <el-radio-group v-model="formEdit.html_type">
-                                <el-radio :label="0">不需要</el-radio>
-                                <el-radio :label="1">需要</el-radio>
-                            </el-radio-group>
-                            <div class="form-tip">网盘链接不在列表页中、需进入详情页获取时选择"需要"</div>
-                        </el-form-item>
-
-                        <el-form-item prop="html_url" label="详情页标签" v-if="formEdit.html_type==1">
-                            <el-input size="medium" autocomplete="off" v-model="formEdit.html_url" placeholder="如：a+post_url"></el-input>
-                            <div class="form-tip">格式：a+class名，只能 a 标签。如 a+post_url 获取 href 属性值</div>
-                        </el-form-item>
-
-                        <el-form-item prop="html_url2" label="网盘链接">
-                            <el-input size="medium" autocomplete="off" v-model="formEdit.html_url2" placeholder="如：a+down-link"></el-input>
-                            <div class="form-tip">循环项中提取网盘链接的元素，格式：标签名+class名</div>
-                        </el-form-item>
-                    </block>
-                </el-col>
-            </el-row>
+            <el-form-item prop="status" label="是否启用">
+                <el-switch v-model="formEdit.status" size="medium" />
+            </el-form-item>
         </el-form>
         <div slot="footer" class="dialog-footer">
             <el-button @click="dialogFormEdit = false">取 消</el-button>
@@ -398,11 +390,10 @@
                 <div v-else-if="!testLoading" style="color: #999;">暂无数据</div>
                 <div v-else style="color: #999;">正在测试...</div>
             </el-form-item>
-            <el-form-item label="错误原因" v-if="testForm.errorMsg">
-                <div style="color: #f56c6c;">{{ testForm.errorMsg }}</div>
-            </el-form-item>
         </el-form>
     </el-dialog>
+
+    {include file="source/dialog_novelconfig"/}
 
     {include file="common/footer"/}
     <script>
@@ -433,6 +424,23 @@
                         results: []
                     },
                     testLoading: false,
+                    // 小说转存配置（转存设置走 qf_conf，网盘账户列表走 pan-backend；网盘服务连接/令牌在「网盘管理」页维护）
+                    dialogNovelConfig: false,
+                    novelCfgLoading: false,
+                    novelCfgError: '',
+                    novelCfg: {
+                        base_url: '',
+                        pan_settings: null,
+                        accounts: null,
+                        accounts_error: ''
+                    },
+                    novelCfgPanEnabled: false,
+                    novelCfgSelectedAccounts: [],
+                    novelCfgRemoteDir: '/novel',
+                    novelCfgConcurrency: 3,
+                    novelCfgAccountOptions: [],
+                    novelCfgAccountsError: '',
+                    novelCfgPanSaving: false,
                     rules: {
                         name: [{ required: true, message: '请输入分类名称', trigger: 'blur' }],
                     },
@@ -499,13 +507,6 @@
                         count: 5,
                         status: true,
                         html_type: 0,
-                        auth_enabled: 0,
-                        auth_username: '',
-                        auth_password: '',
-                        headers: `{
-    "X-Auth-Key": "",
-    "Content-Type": "application/json"
-}`,
                         fixed_params: `{
     "kw": "{keyword}",
     "cloud_types": ["quark"]
@@ -582,12 +583,6 @@
                             if (response.data.code == CODE_SUCCESS) {
                                 that.formEdit = response.data.data;
                                 that.formEdit.status = that.formEdit.status == 1 ? true : false;
-                                if (!that.formEdit.headers) {
-                                    that.formEdit.headers = `{
-    "X-Auth-Key": "",
-    "Content-Type": "application/json"
-}`;
-                                }
                                 that.dialogFormEdit = true;
                             } else {
                                 that.$message.error(response.data.message);
@@ -651,7 +646,6 @@
                         keyword: '仙逆',
                         is_show: 1,
                         results: [],
-                        errorMsg: '',
                         line: row
                     };
                     that.dialogTest = true;
@@ -662,7 +656,6 @@
                     var that = this;
                     that.testLoading = true;
                     that.testForm.results = [];
-                    that.testForm.errorMsg = '';
                     
                     var url = '/api/other/web_search?title=' + encodeURIComponent(that.testForm.keyword) + '&is_show=' + that.testForm.is_show + '&is_type=' + that.testForm.line.pantype;
                     
@@ -687,9 +680,7 @@
                         } else {
                             try {
                                 var result = JSON.parse(data);
-                                if (result.error) {
-                                    that.testForm.errorMsg = result.error;
-                                } else if (result.title && result.url) {
+                                if (result.title && result.url) {
                                     results.push(result);
                                     that.testForm.results = results;
                                 }
@@ -776,19 +767,122 @@
                         });
                 },
 
-                getPanTypeName(pantype) {
-                    var pan = this.panTypes.find(item => item.id === pantype);
-                    return pan ? pan.name : '';
-                },
-
-                getLineTypeName(type) {
-                    var typeMap = {
-                        'api': '接口',
-                        'tg': 'TG频道',
-                        'html': '网页'
+                // ==================== 小说服务配置（代理 no-novel-node /admin/*） ====================
+                // 网盘驱动 → 名称 + 品牌色（账户标识格式 {drive_type}_{userId}）
+                driveInfo(account) {
+                    var meta = {
+                        quark: { name: '夸克网盘', color: '#5B6CFF' },
+                        aliyun: { name: '阿里云盘', color: '#FF6A00' },
+                        baidu: { name: '百度网盘', color: '#2932E1' },
+                        uc: { name: 'UC网盘', color: '#FF5000' },
+                        xunlei: { name: '迅雷云盘', color: '#1B93E6' },
+                        '123pan': { name: '123云盘', color: '#0EB5CF' },
+                        '123': { name: '123云盘', color: '#0EB5CF' },
+                        '115': { name: '115网盘', color: '#3388FF' },
+                        tianyi: { name: '天翼云盘', color: '#E60012' },
+                        yidong: { name: '移动云盘', color: '#0085D0' },
+                        mobile: { name: '移动云盘', color: '#0085D0' },
+                        guangya: { name: '光鸭网盘', color: '#F5A623' }
                     };
-                    return typeMap[type] || type;
-                }
+                    var type = String(account || '').split('_')[0].toLowerCase();
+                    var m = meta[type] || { name: type || '未知', color: '#909399' };
+                    return { name: m.name, color: m.color };
+                },
+                NovelConfigShow() {
+                    this.dialogNovelConfig = true;
+                    this.loadNovelConfig();
+                },
+                loadNovelConfig() {
+                    var that = this;
+                    that.novelCfgLoading = true;
+                    that.novelCfgError = '';
+                    axios.post('/admin/novel_config/getConfig', Object.assign({}, PostBase))
+                        .then(function (response) {
+                            that.novelCfgLoading = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                var d = response.data.data || {};
+                                that.novelCfg = d;
+                                var ps = d.pan_settings || {};
+                                that.novelCfgPanEnabled = !!ps.enabled;
+                                that.novelCfgRemoteDir = String(ps.remote_dir || '/novel');
+                                that.novelCfgConcurrency = parseInt(ps.concurrency, 10) || 3;
+                                var selected = Array.isArray(ps.accounts) ? ps.accounts.map(String) : [];
+                                // 账户行归一化：账户列表行来自 pan-backend（drive_type/userId/nickname/icon 等，
+                                // icon 为 base64 data URI）；兼容字符串或 {account} 形式
+                                var rows = [];
+                                if (Array.isArray(d.accounts)) {
+                                    d.accounts.forEach(function (r) {
+                                        if (typeof r === 'string') {
+                                            rows.push({ account: r, icon: '', detail: '', nickname: '' });
+                                        } else if (r && typeof r === 'object') {
+                                            var acc = r.account
+                                                || (r.drive_type && r.userId ? (r.drive_type + '_' + r.userId) : '')
+                                                || r.id || '';
+                                            if (!acc) return;
+                                            var parts = [];
+                                            ['nickname', 'name', 'status'].forEach(function (k) {
+                                                if (r[k] !== undefined && r[k] !== null && r[k] !== '') parts.push(String(r[k]));
+                                            });
+                                            // 网盘昵称：转存账户勾选项展示用，nickname 缺失时回退 name
+                                            rows.push({ account: String(acc), icon: r.icon || '', detail: parts.join(' · '), nickname: String(r.nickname || r.name || '') });
+                                        }
+                                    });
+                                }
+                                // 账户 icon / 网盘昵称索引（来自账户列表行）
+                                var iconMap = {};
+                                var nickMap = {};
+                                rows.forEach(function (r) {
+                                    iconMap[r.account] = r.icon || '';
+                                    nickMap[r.account] = r.nickname || '';
+                                });
+                                // 可勾选项 = 已配置目标账户 ∪ 服务现存账户（去重，携带 icon/nickname）
+                                var opts = [];
+                                var seenAcc = {};
+                                selected.forEach(function (a) {
+                                    if (!seenAcc[a]) { seenAcc[a] = true; opts.push({ account: a, icon: iconMap[a] || '', nickname: nickMap[a] || '' }); }
+                                });
+                                rows.forEach(function (r) {
+                                    if (!seenAcc[r.account]) { seenAcc[r.account] = true; opts.push({ account: r.account, icon: r.icon || '', nickname: r.nickname || '' }); }
+                                });
+                                that.novelCfgAccountOptions = opts;
+                                // 过滤掉服务里已不存在的账户，避免保存幽灵账户
+                                that.novelCfgSelectedAccounts = rows.length
+                                    ? selected.filter(function (a) { return rows.some(function (r) { return r.account === a; }); })
+                                    : selected;
+                                that.novelCfgAccountsError = d.accounts_error || '';
+                            } else {
+                                that.novelCfgError = response.data.message || '配置获取失败';
+                            }
+                        })
+                        .catch(function (error) {
+                            that.novelCfgLoading = false;
+                            that.novelCfgError = '服务器内部错误';
+                            console.log(error);
+                        });
+                },
+                saveNovelPanSettings() {
+                    var that = this;
+                    that.novelCfgPanSaving = true;
+                    axios.post('/admin/novel_config/savePanSettings', Object.assign({}, PostBase, {
+                        enabled: that.novelCfgPanEnabled ? 1 : 0,
+                        accounts: that.novelCfgSelectedAccounts,
+                        remote_dir: that.novelCfgRemoteDir,
+                        concurrency: that.novelCfgConcurrency
+                    }))
+                        .then(function (response) {
+                            that.novelCfgPanSaving = false;
+                            if (response.data.code == CODE_SUCCESS) {
+                                that.$message.success(response.data.message);
+                            } else {
+                                that.$message.error(response.data.message);
+                            }
+                        })
+                        .catch(function (error) {
+                            that.novelCfgPanSaving = false;
+                            that.$message.error('服务器内部错误');
+                            console.log(error);
+                        });
+                },
             }
         })
     </script>

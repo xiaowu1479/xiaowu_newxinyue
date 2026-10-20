@@ -66,7 +66,7 @@ class Source extends QfShop
         $map[] = ['status', '=', 1];
         $map[] = ['is_delete', '=', 0];
         $map[] = ['source_id', '=', $data['id']];
-        $field = 'source_id as id,source_category_id,title,url,code,create_time as time,vod_content,vod_pic,is_type,is_time';
+        $field = 'source_id as id,source_category_id,title,url,create_time as time,vod_content,vod_pic,is_type';
         $result = $this->with('category')->where($map)->field($field)->find();
         if(!is_null($result)){
             $result->inc('page_views')->update();
@@ -99,6 +99,7 @@ class Source extends QfShop
         $searchTitle = [];
         
         $map[] = ['status', '=', 1];
+        $map[] = ['is_time', '=', 0];
         $map[] = ['is_delete', '=', 0];
 
         if(!empty($data['day']) && $data['day']==2){
@@ -122,9 +123,8 @@ class Source extends QfShop
             }
         }
         
-        // 默认查询永久(0)+外部(2)资源；is_time=1 时不过滤 is_time（搜索需返回全部资源，含临时，以便后续刷新其 update_time 防误删）
-        if (empty($data['is_time']) || $data['is_time'] != 1) {
-            $map[] = ['is_time', 'in', [0, 2]];
+        if(!empty($data['is_time']) && $data['is_time']==1){
+            unset($map[array_search(['is_time', '=', 0], $map)]);
         }
         
         if(!empty($data['category_id'])){
@@ -267,7 +267,7 @@ class Source extends QfShop
         $map = [];
 
         $map[] = ['status', '=', 1];
-        $map[] = ['is_time', 'in', [0, 2]];
+        $map[] = ['is_time', '=', 0];
 
         $result['total_result'] = $this->where($map)->count();
         if ($result['total_result'] <= 0) {

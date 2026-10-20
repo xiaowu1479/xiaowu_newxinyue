@@ -4,7 +4,6 @@ namespace app\api\controller;
 
 use app\api\QfShop;
 use util\Upgrade;
-use think\facade\Db;
 
 /**
  * 主服务器更新源接口
@@ -37,56 +36,12 @@ class Update extends QfShop
     }
 
     /**
-     * 记录请求方（从服务器）的域名和IP
-     */
-    private function recordServer(): void
-    {
-        try {
-            $ip = getClientIp() ?? '';
-            $domain = input('domain', '');
-            $version = input('version', '');
-            $sqlVersion = input('sql_version', '');
-            $now = time();
-
-            $existing = Db::name('install_server')
-                ->where('server_domain', $domain)
-                ->where('server_ip', $ip)
-                ->find();
-
-            if ($existing) {
-                Db::name('install_server')
-                    ->where('server_id', $existing['server_id'])
-                    ->update([
-                        'server_version' => $version,
-                        'server_sql_version' => $sqlVersion,
-                        'server_last_check' => $now,
-                        'server_updatetime' => $now,
-                    ]);
-            } else {
-                Db::name('install_server')->insert([
-                    'server_domain' => $domain,
-                    'server_ip' => $ip,
-                    'server_version' => $version,
-                    'server_sql_version' => $sqlVersion,
-                    'server_last_check' => $now,
-                    'server_status' => 0,
-                    'server_createtime' => $now,
-                    'server_updatetime' => $now,
-                ]);
-            }
-        } catch (\Throwable $e) {
-            // 记录失败不影响主流程
-        }
-    }
-
-    /**
      * 文件清单接口
      * 返回所有受控文件的 MD5 字典、版本号、SQL版本、更新日志
      */
     public function manifest()
     {
         $this->checkSecret();
-        $this->recordServer();
         $upgrade = new Upgrade();
         $files = $upgrade->scanFiles();
         $version = $upgrade->getLocalVersion();
@@ -173,7 +128,6 @@ class Update extends QfShop
     public function version()
     {
         $this->checkSecret();
-        $this->recordServer();
         $upgrade = new Upgrade();
         return jok('success', [
             'version' => $upgrade->getLocalVersion(),

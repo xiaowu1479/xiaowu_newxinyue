@@ -77,21 +77,11 @@ class Search extends QfShop
         $sort = input('sort', 'time');
         $isTime = intval(input('is_time', 0));
         $isTime = in_array($isTime, [0, 1], true) ? $isTime : 0;
-        $panType = input('pan_type', '');
 
         $map = [];
         $map[] = ['status', '=', 1];
         $map[] = ['is_delete', '=', 0];
-        if ($isTime === 1) {
-            $map[] = ['is_time', '=', 1];        // 仅查临时资源
-        } else {
-            $map[] = ['is_time', 'in', [0, 2]];  // 默认（0）：永久 + 外部资源
-        }
-
-        // 网盘类型筛选
-        if ($panType !== '' && is_numeric($panType)) {
-            $map[] = ['is_type', '=', intval($panType)];
-        }
+        $map[] = ['is_time', '=', $isTime];
 
         if ($categoryId > 0) {
             $map[] = ['source_category_id', '=', $categoryId];
@@ -99,7 +89,7 @@ class Search extends QfShop
 
         $SourceModel = new SourceModel();
         $result = $SourceModel->where($map)
-            ->field('source_id as id,title,url,code,description,vod_content,create_time,update_time,is_type,source_category_id,vod_pic as src,page_views,is_time')
+            ->field('source_id as id,title,url,code,description,vod_content,create_time,update_time,is_type,source_category_id,vod_pic as src,page_views')
             ->when($sort === 'hot', function ($query) {
                 $query->order(['page_views' => 'desc', 'create_time' => 'desc']);
             }, function ($query) {
@@ -125,10 +115,6 @@ class Search extends QfShop
             $item['description'] = !empty($item['description']) ? $item['description'] : (trim((string)$item['vod_content']) !== '' ? $item['vod_content'] : '');
             unset($item['create_time'], $item['update_time'], $item['vod_content']);
         }
-        unset($item);
-
-        // 加密外部资源(is_time=2)链接，前端通过 save_url 转存后显示
-        encryptExternalUrls($list);
 
         return jok('获取成功', [
             'list' => $list,

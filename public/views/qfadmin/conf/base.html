@@ -36,16 +36,13 @@
                                 <block v-else>
                                     <el-input v-model="items.conf_value"></el-input>
                                 </block>
-                                <span class="f_tips">
-                                    <template v-if="items.conf_key === 'footer_copyright'">示例：© 2026 心悦搜索 Powered by &lt;a href="https://www.panbot.cn/" target="_blank"&gt;panbot&lt;/a&gt; |</template>
-                                    <template v-else>{{items.conf_desc}}</template>
+                                <span class="f_tips">{{items.conf_desc}}
                                     <span v-if="items.conf_spec==5">　最多上传10张</span>
                                 </span>
                             </el-form-item>
                         </block>
                         <el-form-item>
                             <el-button type="primary" @click="onSubmit(item.val)">保存配置</el-button>
-                            <el-button type="warning" @click="cleanCache" plain>清除缓存</el-button>
                         </el-form-item>
                     </el-form>
                 </div>
@@ -61,23 +58,8 @@
                 this.getData();
                 return {
                     form: [],
-                    activeName: "0",
+                    activeName: "",
                     tabname: [
-                        {
-                            name: '基础设置',
-                            val: '0',
-                            show: false,
-                        },
-                        {
-                            name: 'SEO设置',
-                            val: '9',
-                            show: false,
-                        },
-                        {
-                            name: '前端模版',
-                            val: '3',
-                            show: false,
-                        },
                         {
                             name: '搜索设置',
                             val: '1',
@@ -158,6 +140,13 @@
                                     }
                                 }
                                 that.form = res.data.data;
+                                // 默认激活第一个有配置项的 tab（首 tab 可能已被迁出）
+                                for (let i = 0; i < that.tabname.length; i++) {
+                                    if (that.tabname[i].show) {
+                                        that.activeName = that.tabname[i].val;
+                                        break;
+                                    }
+                                }
                             } else {
                                 that.$message.error(res.data.message);
                             }
@@ -176,24 +165,6 @@
                         }
                     }
                     axios.post('/admin/conf/updateBaseConfig', Object.assign({}, PostBase, postData))
-                        .then(function (res) {
-                            if (res.data.code == 200) {
-                                that.$message({
-                                    message: res.data.message,
-                                    type: 'success'
-                                });
-                            } else {
-                                that.$message.error(res.data.message);
-                            }
-                        })
-                        .catch(function (error) {
-                            that.$message.error('服务器内部错误');
-                            console.log(error);
-                        });
-                },
-                cleanCache() {
-                    var that = this;
-                    axios.post('/admin/system/clean', Object.assign({}, PostBase))
                         .then(function (res) {
                             if (res.data.code == 200) {
                                 that.$message({

@@ -20,6 +20,8 @@
     <!-- header 操作按钮 -->
     <div class="header-actions">
         <el-button icon="el-icon-plus" size="small" @click="clickAdd" type="primary">添加资源</el-button>
+        <el-button icon="el-icon-refresh" size="small" @click="PanBotShow" plain class="panbot-btn">panbot同步</el-button>
+        <el-button icon="el-icon-bell" size="small" @click="SubscribeShow" plain class="subscribe-btn">订阅资源</el-button>
         <el-button icon="el-icon-document-copy" size="small" @click="getExport" plain>导出表格</el-button>
         <el-button icon="el-icon-upload2" size="small" @click="ImportShow" plain>导入资源</el-button>
         <el-button icon="el-icon-files" size="small" @click="openCategory" plain>分类管理</el-button>
@@ -81,7 +83,7 @@
                 <div style="display:flex;flex-direction:column;gap:12px;">
                     <div style="display:flex;align-items:center;gap:8px;">
                         <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">分类</label>
-                        <el-select size="small" v-model="search.source_category_id" placeholder="筛选分类" style="flex:1;">
+                        <el-select size="small" v-model="search.source_category_id" placeholder="筛选分类" style="flex:1;" @change="getList_search">
                             <el-option label="全部分类" value=""></el-option>
                             <el-option v-for="item in category" :key="item.source_category_id" :label="item.name"
                                 :value="item.source_category_id">
@@ -90,7 +92,7 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">网盘</label>
-                        <el-select size="small" v-model="search.is_type" placeholder="网盘类型" style="flex:1;">
+                        <el-select size="small" v-model="search.is_type" placeholder="网盘类型" style="flex:1;" @change="getList_search">
                             <el-option label="全部网盘" value=""></el-option>
                             <el-option label="夸克" :value="0"></el-option>
                             <el-option label="阿里" :value="1"></el-option>
@@ -106,8 +108,7 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">类型</label>
-                        <el-select size="small" v-model="search.is_time" placeholder="资源类型" style="flex:1;">
-                            <el-option label="全部资源" value=""></el-option>
+                        <el-select size="small" v-model="search.is_time" placeholder="资源类型" style="flex:1;" @change="getList_search">
                             <el-option label="永久资源" :value="0"></el-option>
                             <el-option label="临时资源" :value="1"></el-option>
                             <el-option label="外部资源" :value="2"></el-option>
@@ -115,7 +116,7 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">标识</label>
-                        <el-select size="small" v-model="search.is_top" placeholder="资源标识" style="flex:1;">
+                        <el-select size="small" v-model="search.is_top" placeholder="资源标识" style="flex:1;" @change="getList_search">
                             <el-option label="全部标识" value=""></el-option>
                             <el-option label="普通资源" :value="0"></el-option>
                             <el-option :label="rankNames[0] || '热搜榜'" :value="1"></el-option>
@@ -125,20 +126,17 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <label style="width:70px;font-size:13px;color:#606266;flex-shrink:0;">排序</label>
-                        <el-select size="small" v-model="form.order" placeholder="请选择" style="flex:1;">
+                        <el-select size="small" v-model="form.order" placeholder="请选择" style="flex:1;" @change="getList_search">
                             <el-option label="ID排序" value="source_id desc"></el-option>
-                            <el-option label="入库时间" value="create_time desc"></el-option>
+                            <el-option label="更新时间" value="update_time desc"></el-option>
                         </el-select>
-                    </div>
-                    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
-                        <el-button size="small" @click="resetFilter" plain>重置</el-button>
-                        <el-button size="small" type="primary" @click="applyFilter">确认筛选</el-button>
                     </div>
                 </div>
                 <el-button slot="reference" icon="el-icon-set-up" size="small">筛选</el-button>
             </el-popover>
             <el-button icon="el-icon-edit" size="small" @click="showBatchCategory" plain>编辑</el-button>
             <el-button icon="el-icon-delete" size="small" @click="postMultDelete" type="danger" plain>删除</el-button>
+            <el-button icon="el-icon-folder-add" size="small" @click="ImportBatch" plain>转存</el-button>
             <el-button icon="el-icon-magic-stick" size="small" @click="scrapeCovers" plain>刮削</el-button>
         </el-form-item>
         <el-form-item class="view-toggle-item">
@@ -175,13 +173,6 @@
                 <span class="category-tag">{{ scope.row.source_category_id_name || '未分类' }}</span>
             </template>
         </el-table-column>
-        <el-table-column prop="is_time" label="类型" width="100" align="center">
-            <template slot-scope="scope">
-                <el-tag size="mini" :type="scope.row.is_time === 0 ? 'success' : scope.row.is_time === 1 ? 'warning' : 'info'">
-                    {{ scope.row.is_time === 0 ? '永久资源' : scope.row.is_time === 1 ? '临时资源' : '外部资源' }}
-                </el-tag>
-            </template>
-        </el-table-column>
         <el-table-column prop="url" label="资源地址" min-width="200">
             <template slot-scope="scope">
                 <el-link type="primary" :href="scope.row.url" target="_blank" :underline="false" class="url-link">
@@ -196,7 +187,7 @@
                 </span>
             </template>
         </el-table-column>
-        <el-table-column prop="create_time" label="入库时间" align="center" width="160">
+        <el-table-column prop="update_time" label="更新时间" align="center" width="160">
         </el-table-column>
         <el-table-column label="操作" width="140" align="center">
             <template slot-scope="scope">
@@ -221,7 +212,7 @@
                 <span v-if="item.is_top > 0" class="source-card-badge" :class="{hot: item.is_top === 1, new: item.is_top === 2, good: item.is_top === 3}">
                     {{ item.is_top === 1 ? (rankNames[0] || '热搜榜') : item.is_top === 2 ? (rankNames[1] || '推荐榜') : (rankNames[2] || '好评榜') }}
                 </span>
-                <img v-if="item.vod_pic" :src="item.vod_pic" :alt="item.title" loading="lazy" />
+                <img v-if="item.vod_pic" :src="item.vod_pic" :alt="item.title" loading="lazy" @error="cardCoverError($event, 'source-card-cover-placeholder')" />
                 <i v-else class="el-icon-picture-outline source-card-cover-placeholder"></i>
             </div>
             <div class="source-card-body">
@@ -237,7 +228,7 @@
                     <a :href="item.url" target="_blank" @click.stop style="color: inherit; text-decoration: none;">{{ item.url | truncate(35) }}</a>
                 </div>
                 <div class="source-card-footer">
-                    <span class="source-card-time">{{ item.create_time }}</span>
+                    <span class="source-card-time">{{ item.update_time }}</span>
                     <div class="source-card-actions">
                         <el-button type="primary" size="mini" icon="el-icon-edit" @click.stop="clickEdit(item)">编辑</el-button>
                         <el-button type="danger" size="mini" icon="el-icon-delete" plain @click.stop="clickDelete(item)">删除</el-button>
@@ -258,7 +249,7 @@
             @click="toggleCardSelection(item)">
             <div class="movie-card-cover">
                 <span class="source-card-rank" :class="{top1: index === 0, top2: index === 1, top3: index === 2}">{{ index + 1 }}</span>
-                <img v-if="item.vod_pic" :src="item.vod_pic" :alt="item.title" loading="lazy" />
+                <img v-if="item.vod_pic" :src="item.vod_pic" :alt="item.title" loading="lazy" @error="cardCoverError($event, 'movie-cover-placeholder')" />
                 <i v-else class="el-icon-picture-outline movie-cover-placeholder"></i>
                 <div class="movie-card-overlay">
                     <el-button type="primary" size="mini" icon="el-icon-edit" @click.stop="clickEdit(item)">编辑</el-button>
@@ -267,7 +258,7 @@
             </div>
             <div class="movie-card-info">
                 <div class="movie-card-title" :title="item.title">{{ item.title }}</div>
-                <div class="movie-card-date">{{ item.create_time }}</div>
+                <div class="movie-card-date">{{ item.update_time }}</div>
             </div>
         </div>
     </div>
@@ -285,6 +276,8 @@
     {include file="source/dialog_cover"/}
     {include file="source/dialog_import"/}
     {include file="source/dialog_scrape"/}
+    {include file="source/dialog_subscribe"/}
+    {include file="source/dialog_panbot"/}
     {include file="source/dialog_category"/}
 
     {include file="common/footer"/}

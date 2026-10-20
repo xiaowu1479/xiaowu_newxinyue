@@ -3,22 +3,13 @@
 <script src="__STATIC__/simple/common/static/js/axios.min.js"></script>
 <script src="__STATIC__/simple/common/static/js/qrcanvas@3.js"></script>
 <script src="__STATIC__/simple/common/static/js/app-core.js"></script>
-<script src="__STATIC__/simple/common/static/js/search.js?v=20260814"></script>
+<script src="__STATIC__/simple/common/static/js/search.js?v=202609282"></script>
+<script src="__STATIC__/simple/common/static/js/novel-downloader.js?v=202609291"></script>
 <script src="__STATIC__/simple/common/static/js/app-pages.js"></script>
 <script src="//open.thunderurl.com/thunder-link.js"></script>
 <script>
-{php}
-// 从 qf_banner 表读取启用的轮播图（后台 Banner管理 CRUD 维护）
-$__bannerItems = \think\facade\Db::name('banner')
-    ->where('banner_status', 0)
-    ->order('banner_sort', 'asc')
-    ->order('banner_id', 'asc')
-    ->field('banner_image as url, banner_title as name, banner_link as link')
-    ->select()->toArray();
-foreach ($__bannerItems as &$__b) { if (empty($__b['link'])) unset($__b['link']); }
-unset($__b);
-echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNICODE) . ';';
-{/php}
+// 首页轮播数据由控制器注入（app\service\BannerService：qf_banner 优先，异常或为空回退扫描 banner 目录，缓存 10 分钟）
+window.__BANNER_LIST = {$bannerListJson|raw};
     const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
     const { ElButton, ElMessage  } = ElementPlus;
     const app = createApp({
@@ -49,6 +40,8 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                     dialogLoading: dialogLoading,
                     dialogItem: dialogItem,
                     onShowResource: function() { loadHotKeywords(); }
+                    // 小说下载任务由 novel-downloader.js 全局接管（search.js 直接调 window.novelDownloader.startTask），
+                    // 此处不再注册 startNovelDownload 回调
                 });
             }
             const is_type = ref(0);
@@ -58,16 +51,6 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
             // TMDB 影视信息
             const tmdbData = ref({});
             const tmdbLoading = ref(false);
-
-            // 首页公告弹窗
-            const noticeVisible = ref(false);
-            const noticeImage = ref({:json_encode($config.notice_image ?? '')});
-            const noticeText = ref({:json_encode($config.notice_text ?? '')});
-            const dismissNotice = () => {
-                const sevenDays = 7 * 24 * 60 * 60 * 1000;
-                localStorage.setItem('notice_dismiss_until', String(Date.now() + sevenDays));
-                noticeVisible.value = false;
-            };
 
             // 热搜词
             const hotKeywords = ref([]);
@@ -140,19 +123,6 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                     window.searchByKeyword(title);
                 }
             };
-            // Banner 点击：有 link 跳外链，无 link 用 name 搜索
-            const bannerClick = function(item) {
-                // 触摸滑动后浏览器仍可能派发 click，需阻止
-                if (bannerTouchMoved) {
-                    bannerTouchMoved = false;
-                    return;
-                }
-                if (item && item.link) {
-                    window.open(item.link, '_blank');
-                } else if (item && item.name) {
-                    searchByTitle(item.name);
-                }
-            };
             // 分类热搜卡片点击：本地数据(is_type=1)直接显示资源弹窗，网络数据用标题搜索
             const showHotCategoryResource = function(item, cat) {
                 if (cat.is_type === 1) {
@@ -215,39 +185,12 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 bannerIndex.value = (i + bannerList.value.length) % bannerList.value.length;
                 startBannerAuto();
             };
-
-            // 触摸滑动支持（移动端）
-            let bannerTouchStartX = 0;
-            let bannerTouchStartY = 0;
-            let bannerTouchStartTime = 0;
-            let bannerTouchMoved = false;
-            const onBannerTouchStart = function(e) {
-                if (bannerList.value.length <= 1) return;
-                var touch = e.touches[0];
-                bannerTouchStartX = touch.clientX;
-                bannerTouchStartY = touch.clientY;
-                bannerTouchStartTime = Date.now();
-                bannerTouchMoved = false;
-                stopBannerAuto();
-            };
-            const onBannerTouchEnd = function(e) {
-                if (bannerList.value.length <= 1) return;
-                var touch = e.changedTouches[0];
-                var deltaX = touch.clientX - bannerTouchStartX;
-                var deltaY = touch.clientY - bannerTouchStartY;
-                var elapsed = Date.now() - bannerTouchStartTime;
-                var SWIPE_THRESHOLD = 40;
-                // 横向为主、距离超过阈值、时长合理 → 触发翻页
-                if (Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && elapsed < 800) {
-                    var len = bannerList.value.length;
-                    var newIndex = deltaX > 0
-                        ? (bannerIndex.value - 1 + len) % len   // 右滑：上一张
-                        : (bannerIndex.value + 1) % len;          // 左滑：下一张
-                    bannerGo(newIndex);   // 内部会重启自动播放
-                    bannerTouchMoved = true;
-                } else {
-                    startBannerAuto();   // 未触发翻页，恢复自动播放
-                }
+            // Banner 点击：配置了跳转链接则新窗口打开，否则按名称搜索
+            const onBannerClick = function(item) {
+                if (!item) return;
+                var link = (item.link || '').trim();
+                if (link) { window.open(link, '_blank'); return; }
+                if (item.name) searchByTitle(item.name);
             };
 
             // 白天/黑夜模式切换
@@ -264,10 +207,8 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
 
             // 初始化主题（兼容旧值：blue/red/green -> dark）
             const initTheme = () => {
-                let defaultTheme = '{$config.simple_default_theme}' || 'dark';
-                if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
-                let savedTheme = localStorage.getItem('app-theme') || defaultTheme;
-                if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
+                let savedTheme = localStorage.getItem('app-theme') || 'dark';
+                if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = 'dark';
                 currentTheme.value = savedTheme;
                 document.documentElement.setAttribute('data-theme', savedTheme);
             };
@@ -318,7 +259,9 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
             const searchState = window.searchModule.createDialogState(keyword, {
                 validateKeywordOnSearch: false,
                 selectPanAndSearchMode: 'toggle',
-                getDefaultPanType: function() { return [currentPanType || defaultPanType || '']; },
+                // 小说页单一线路（is_type=11）：跳过线路选择，打开弹窗即直接调用搜索接口
+                autoSearch: window.__NOVEL_PAGE__ === true,
+                getDefaultPanType: function() { return isNovelPage ? ['11'] : [currentPanType || defaultPanType || '']; },
                 onEmptyKeyword: function() { showMessage('请输入你要搜索的内容~', 'error'); },
                 onEmptyPanType: function() { showMessage('请至少选择一条线路~', 'error'); },
                 onSelectPanType: function(panTypes) {
@@ -350,6 +293,338 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
             const onDialogKeywordEnter = searchState.onDialogKeywordEnter;
             var searchResults = [];
             var currentEventSource = null;
+
+            // ==================== 小说板块（仅 /novel 页面，番茄榜单） ====================
+            // novel.html 在引入本脚本前设置 window.__NOVEL_PAGE__ = true
+            const isNovelPage = window.__NOVEL_PAGE__ === true;
+            const novelTab = ref('male_hot');
+            const novelTabs = {
+                male_hot:   { gender: 1, rankMold: 2, label: '男频·阅读榜' },
+                male_new:   { gender: 1, rankMold: 1, label: '男频·新书榜' },
+                female_hot: { gender: 0, rankMold: 2, label: '女频·阅读榜' },
+                female_new: { gender: 0, rankMold: 1, label: '女频·新书榜' }
+            };
+            const novelTabLabel = computed(() => (novelTabs[novelTab.value] || {}).label || '番茄排行榜');
+            const novelCategories = ref([]);
+            const novelCategoryId = ref('1141');
+            const novelBooks = ref([]);
+            const novelLoading = ref(false);
+            var novelCategoryAll = { male: [], female: [] };
+
+            // 加载番茄分类列表（男频/女频），仅请求一次
+            const loadNovelCategories = async function () {
+                if (novelCategoryAll.male.length || novelCategoryAll.female.length) {
+                    applyNovelCategories();
+                    return;
+                }
+                try {
+                    const response = await axios.get('/api/other/novel_rank?action=categories');
+                    const data = (response.data && response.data.code === 200 && response.data.data) ? response.data.data : {};
+                    novelCategoryAll.male = Array.isArray(data.male) ? data.male : [];
+                    novelCategoryAll.female = Array.isArray(data.female) ? data.female : [];
+                } catch (e) {
+                    novelCategoryAll.male = [];
+                    novelCategoryAll.female = [];
+                }
+                applyNovelCategories();
+            };
+
+            // 按当前 Tab 的性别切换分类列表
+            const applyNovelCategories = function () {
+                const tab = novelTabs[novelTab.value] || novelTabs.male_hot;
+                const list = tab.gender === 1 ? novelCategoryAll.male : novelCategoryAll.female;
+                novelCategories.value = list;
+                if (!list.some(function (c) { return c.id === novelCategoryId.value; })) {
+                    novelCategoryId.value = list.length ? list[0].id : '';
+                }
+            };
+
+            // 加载当前榜单书籍
+            const loadNovelBooks = async function () {
+                if (novelLoading.value) return;
+                novelLoading.value = true;
+                try {
+                    const tab = novelTabs[novelTab.value] || novelTabs.male_hot;
+                    const response = await axios.get('/api/other/novel_rank', { params: {
+                        action: 'books',
+                        gender: tab.gender,
+                        rankMold: tab.rankMold,
+                        categoryId: novelCategoryId.value,
+                        limit: 24
+                    }});
+                    const data = (response.data && response.data.code === 200 && response.data.data) ? response.data.data : {};
+                    novelBooks.value = Array.isArray(data.books) ? data.books : [];
+                } catch (e) {
+                    novelBooks.value = [];
+                } finally {
+                    novelLoading.value = false;
+                }
+            };
+
+            // 切换榜单 Tab（男频/女频 × 阅读/新书）
+            const switchNovelTab = function (key) {
+                if (!novelTabs[key] || novelTab.value === key) return;
+                novelTab.value = key;
+                applyNovelCategories();
+                loadNovelBooks();
+            };
+
+            // 切换分类
+            const switchNovelCategory = function (id) {
+                if (novelCategoryId.value === id) return;
+                novelCategoryId.value = id;
+                loadNovelBooks();
+            };
+
+            // 点击榜单卡片：与其它板块一致，打开统一搜索弹窗（默认选中小说线路），由用户发起小说搜索
+            const openNovelBook = function (book) {
+                if (!book) return;
+                keyword.value = book.title || book.name || '';
+                searchBtn();
+            };
+
+            // 导航栏搜索：百度小说板块走板块内搜索（/baidu_novel?wd=），其余板块统一打开搜索弹窗（小说页默认选中小说线路）
+            const navbarSearch = function () {
+                if (isBaiduNovelPage) {
+                    const word = (keyword.value || '').trim();
+                    if (!word) {
+                        showMessage('请输入你要搜索的内容~', 'error');
+                        return;
+                    }
+                    bnSearchWord.value = word;
+                    submitBnSearch();
+                    return;
+                }
+                searchBtn();
+            };
+
+            // ==================== 百度小说板块（仅 /baidu_novel 页面，百度网盘小说资源） ====================
+            // baidu-novel.html 在引入本脚本前设置 window.__BAIDU_NOVEL_PAGE__ = true
+            const isBaiduNovelPage = window.__BAIDU_NOVEL_PAGE__ === true;
+            const bnCategories = ref([]);
+            const bnCategory = ref('all');
+            const bnBookStatus = ref(-1);
+            const bnStatusTabs = [
+                { value: -1, label: '全部' },
+                { value: 0, label: '连载中' },
+                { value: 1, label: '已完结' }
+            ];
+            const bnBooks = ref([]);
+            const bnLoading = ref(false);
+            const bnPage = ref(1);
+            const bnHasMore = ref(false);
+            const bnMode = ref('list'); // list 分类列表 | search 关键词搜索
+            const bnSearchWord = ref('');
+            // 口令弹层（点击卡片生成百度网盘口令）
+            const bnCodeVisible = ref(false);
+            const bnCodeLoading = ref(false);
+            const bnCodeText = ref('');
+            const bnCodeBook = ref(null);
+            const bnCodeFor = ref(''); // 口令对应的书籍 id（换书时重新生成）
+
+            // 加载分类列表（对齐 /api/novel/categories：data 为字符串数组），仅请求一次
+            const loadBnCategories = async function () {
+                if (bnCategories.value.length) return;
+                try {
+                    const response = await axios.get('/api/novel/categories');
+                    const data = (response.data && response.data.code === 200 && Array.isArray(response.data.data)) ? response.data.data : [];
+                    bnCategories.value = data;
+                } catch (e) {
+                    bnCategories.value = [];
+                }
+            };
+
+            // 列表/搜索请求失败提示（保留当前页内容）
+            const bnRequestError = function (e) {
+                const msg = (e.response && e.response.data && e.response.data.message) || '加载失败，请稍后重试';
+                ElMessage.error(msg);
+            };
+
+            // 加载分类列表分页
+            const loadBnBooks = async function (page) {
+                if (bnLoading.value) return;
+                bnLoading.value = true;
+                try {
+                    const response = await axios.get('/api/novel/list', { params: {
+                        page: page,
+                        page_size: 24,
+                        category: bnCategory.value,
+                        book_status: bnBookStatus.value
+                    }});
+                    const payload = (response.data && response.data.code === 200 && response.data.data) ? response.data.data : null;
+                    if (payload) {
+                        bnBooks.value = Array.isArray(payload.list) ? payload.list : [];
+                        bnPage.value = payload.page || page;
+                        bnHasMore.value = !!payload.has_more;
+                    } else {
+                        bnBooks.value = [];
+                        bnHasMore.value = false;
+                    }
+                } catch (e) {
+                    bnRequestError(e);
+                } finally {
+                    bnLoading.value = false;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+
+            // 加载搜索分页
+            const loadBnSearch = async function (page) {
+                if (bnLoading.value) return;
+                bnLoading.value = true;
+                try {
+                    const response = await axios.get('/api/novel/search', { params: {
+                        keyword: keyword.value,
+                        page: page,
+                        page_size: 24
+                    }});
+                    const payload = (response.data && response.data.code === 200 && response.data.data) ? response.data.data : null;
+                    if (payload) {
+                        bnBooks.value = Array.isArray(payload.list) ? payload.list : [];
+                        bnPage.value = payload.page || page;
+                        bnHasMore.value = !!payload.has_more;
+                    } else {
+                        bnBooks.value = [];
+                        bnHasMore.value = false;
+                    }
+                } catch (e) {
+                    bnRequestError(e);
+                } finally {
+                    bnLoading.value = false;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+
+            // 翻页（按当前模式选择列表或搜索接口）
+            const bnGotoPage = function (delta) {
+                const next = bnPage.value + delta;
+                if (next < 1 || bnLoading.value) return;
+                if (bnMode.value === 'search') {
+                    loadBnSearch(next);
+                } else {
+                    loadBnBooks(next);
+                }
+            };
+
+            // 切换分类（回到列表模式）
+            const switchBnCategory = function (cat) {
+                if (bnMode.value === 'list' && bnCategory.value === cat) return;
+                bnMode.value = 'list';
+                bnCategory.value = cat;
+                bnPage.value = 1;
+                loadBnBooks(1);
+            };
+
+            // 切换完结状态（回到列表模式）
+            const switchBnStatus = function (value) {
+                if (bnMode.value === 'list' && bnBookStatus.value === value) return;
+                bnMode.value = 'list';
+                bnBookStatus.value = value;
+                bnPage.value = 1;
+                loadBnBooks(1);
+            };
+
+            // 搜索提交：跳转 URL 参数（与导航搜索关键词打通，支持刷新与分享）
+            const submitBnSearch = function () {
+                const word = (bnSearchWord.value || '').trim();
+                if (!word) return;
+                window.location.href = '/baidu_novel?wd=' + encodeURIComponent(word);
+            };
+
+            // 清除搜索回到分类列表
+            const clearBnSearch = function () {
+                if (bnMode.value !== 'search') return;
+                window.location.href = '/baidu_novel';
+            };
+
+            // 点击卡片：生成百度网盘口令并弹层展示（对齐 lean9 novels 交互）
+            const openBnBook = function (book) {
+                if (!book || !(book.book_id || book.resource_id)) return;
+                bnCodeBook.value = book;
+                bnCodeVisible.value = true;
+                const id = String(book.book_id || book.resource_id || '');
+                if (bnCodeFor.value === id && bnCodeText.value) return; // 同一本书复用已生成口令
+                bnCodeFor.value = id;
+                bnCodeText.value = '';
+                getBnCode(book);
+            };
+
+            // 请求口令生成接口
+            const getBnCode = async function (book) {
+                bnCodeLoading.value = true;
+                try {
+                    const response = await axios.get('/api/novel/code', { params: {
+                        book_id: book.book_id || book.resource_id,
+                        title: book.title || '',
+                        author: book.author || ''
+                    }});
+                    if (response.data && response.data.code === 200 && response.data.data && response.data.data.pcode) {
+                        bnCodeText.value = response.data.data.pcode;
+                    } else {
+                        ElMessage.error((response.data && response.data.message) || '口令生成失败，请稍后重试');
+                        bnCodeVisible.value = false;
+                    }
+                } catch (e) {
+                    const msg = (e.response && e.response.data && e.response.data.message) || '口令生成失败，请稍后重试';
+                    ElMessage.error(msg);
+                    bnCodeVisible.value = false;
+                } finally {
+                    bnCodeLoading.value = false;
+                }
+            };
+
+            // 复制口令
+            const copyBnCode = function () {
+                const text = (bnCodeText.value || '').trim();
+                if (!text) return;
+                const done = function () {
+                    ElMessage.success('口令已复制，请打开百度网盘App粘贴保存');
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done).catch(function () {
+                        fallbackCopyBnCode(text, done);
+                    });
+                } else {
+                    fallbackCopyBnCode(text, done);
+                }
+            };
+
+            // 降级复制（非 https 或旧浏览器）
+            const fallbackCopyBnCode = function (text, done) {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    done();
+                } catch (e) {
+                    ElMessage.error('复制失败，请手动选择口令复制');
+                }
+                document.body.removeChild(ta);
+            };
+
+            // 关闭口令弹层
+            const closeBnCode = function () {
+                bnCodeVisible.value = false;
+                bnCodeText.value = '';
+                bnCodeBook.value = null;
+                bnCodeFor.value = '';
+            };
+
+
+            // ==================== 小说后台下载管理（已收敛至独立模块 novel-downloader.js） ====================
+            // 下载任务状态机与面板渲染完全由 novel-downloader.js 负责（渲染到 #novel-downloader-root），
+            // 此处历史上维护过一套 Vue 版副本（novelDownloadTasks/handleNovelProgressEvent/startNovelDownload 等），
+            // 但从未被任何模板绑定，属死代码，已删除——遵循「xinyue 不参与小说具体逻辑」原则。
+
+            // 处理小说服务 SSE 进度事件（事件均带 bookUrl，用于按书关联任务）
+            // ——已随 novelDownloadTasks 一并删除，进度处理统一在 novel-downloader.js#handleProgress
+
+            // 任务发起/面板开合/文件下载/分享跳转等动作均由 novel-downloader.js 提供
+            // （window.novelDownloader.startTask / openPanel / downloadToBrowser 等），此处不再重复实现。
 
             // 搜索结果缓存配置（10分钟）
             const SEARCH_CACHE_DURATION = 10 * 60 * 1000; // 10分钟
@@ -650,7 +925,7 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 if (!keyword.value) {
                     return showMessage('请输入你要搜索的内容~', 'error');
                 }
-                
+
                 // 停止当前检测
                 if (window.stopLinkChecking) {
                     window.stopLinkChecking();
@@ -659,11 +934,55 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 // 重置搜索数据缓存
                 window.currentSearchData = [];
 
+                // 小说线路（is_type=11）：纯同步转发到 no-novel-node /search/aggregated，xinyue 不掺业务逻辑
+                if (String(currentPanType) === '11') {
+                    if (currentEventSource) {
+                        try { currentEventSource.close(); } catch (e) {}
+                        currentEventSource = null;
+                    }
+                    try {
+                        const section = document.getElementById('searchResultSection');
+                        const content = document.getElementById('searchResultContent');
+                        const countEl = document.getElementById('searchResultCount');
+                        section.classList.add('show');
+                        // 显示加载中转圈（与 SSE 路径一致），axios 拿到结果后再覆盖
+                        content.innerHTML = '<div class="search-result-loading"><div class="loading-wrapper"><div class="loading-pulse"></div><div class="loading-pulse"></div><div class="loading-pulse"></div><i class="iconfont icon-jiazai"></i></div><div class="loading-text">正在全网搜索</div></div>';
+                        searchResults = [];
+                        const resp = await axios.get('/api/other/novel_search', {
+                            params: { title: keyword.value, searchLimit: 20 },
+                            timeout: 40000,
+                        });
+                        const data = resp && resp.data;
+                        // 拿到结果后用结果列表容器覆盖 loading 转圈
+                        content.innerHTML = '<div class="search-result-list"></div>';
+                        if (data && data.code === 200 && Array.isArray(data.data)) {
+                            for (let i = 0; i < data.data.length; i++) {
+                                const item = data.data[i];
+                                if (!item.title && item.bookName) item.title = item.bookName;
+                                if (!item.url && item.bookUrl) item.url = item.bookUrl;
+                                if (!item.is_type) item.is_type = 11;
+                                if (!item.source && item.sourceName) item.source = item.sourceName;
+                                searchResults.push(item);
+                                appendSearchResult(item, searchResults.length - 1);
+                            }
+                            countEl.textContent = '共 ' + searchResults.length + ' 条结果';
+                            setTimeout(function() { batchCheckLinksForSearchResults(); }, 500);
+                        } else {
+                            countEl.textContent = '';
+                            content.innerHTML = '<div class="search-result-empty" style="text-align:center;padding:40px 20px;color:#999;">未找到相关资源</div>';
+                        }
+                    } catch (err) {
+                        const content = document.getElementById('searchResultContent');
+                        content.innerHTML = '<div class="search-result-empty" style="text-align:center;padding:40px 20px;color:#999;">搜索失败，请重试</div>';
+                    }
+                    return;
+                }
+
                 // 切换线路时，重置本地资源状态并重新查询
                 hasLocalData = false;
                 localSearchResults = [];
                 toggleLocalSearchButton(false);
-                
+
                 // 检查本地资源（根据当前线路类型过滤）
                 var localResult = await checkLocalResources(keyword.value, currentPanType);
                 if (localResult.hasData && localResult.items.length > 0) {
@@ -704,7 +1023,7 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                     currentEventSource = new EventSource(searchUrl);
                     // 初始化搜索结果数组，如果有本地资源则先加入
                     searchResults = hasLocalData ? [...localSearchResults] : [];
-                    var maxResults = 60;
+                    var maxResults = 20;
                     var isClosed = false;
                     var localCount = searchResults.length;
                     
@@ -918,6 +1237,49 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 // 重置搜索数据缓存
                 window.currentSearchData = [];
 
+                // 小说线路（is_type=11）：纯同步转发到 no-novel-node /search/aggregated，xinyue 不掺业务逻辑
+                if (String(currentPanType) === '11') {
+                    if (currentEventSource) {
+                        try { currentEventSource.close(); } catch (e) {}
+                        currentEventSource = null;
+                    }
+                    try {
+                        const section = document.getElementById('searchResultSection');
+                        const content = document.getElementById('searchResultContent');
+                        const countEl = document.getElementById('searchResultCount');
+                        section.classList.add('show');
+                        content.innerHTML = '<div class="search-result-list"></div>';
+                        searchResults = [];
+                        const resp = await axios.get('/api/other/novel_search', {
+                            params: { title: keyword.value, searchLimit: 20 },
+                            timeout: 40000,
+                        });
+                        const data = resp && resp.data;
+                        // 拿到结果后用结果列表容器覆盖 loading 转圈
+                        content.innerHTML = '<div class="search-result-list"></div>';
+                        if (data && data.code === 200 && Array.isArray(data.data)) {
+                            for (let i = 0; i < data.data.length; i++) {
+                                const item = data.data[i];
+                                if (!item.title && item.bookName) item.title = item.bookName;
+                                if (!item.url && item.bookUrl) item.url = item.bookUrl;
+                                if (!item.is_type) item.is_type = 11;
+                                if (!item.source && item.sourceName) item.source = item.sourceName;
+                                searchResults.push(item);
+                                appendSearchResult(item, searchResults.length - 1);
+                            }
+                            countEl.textContent = '共 ' + searchResults.length + ' 条结果';
+                            setTimeout(function() { batchCheckLinksForSearchResults(); }, 500);
+                        } else {
+                            countEl.textContent = '';
+                            content.innerHTML = '<div class="search-result-empty" style="text-align:center;padding:40px 20px;color:#999;">未找到相关资源</div>';
+                        }
+                    } catch (err) {
+                        const content = document.getElementById('searchResultContent');
+                        content.innerHTML = '<div class="search-result-empty" style="text-align:center;padding:40px 20px;color:#999;">搜索失败，请重试</div>';
+                    }
+                    return;
+                }
+
                 // 重置本地数据状态
                 hasLocalData = false;
                 localSearchResults = [];
@@ -990,7 +1352,7 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                     currentEventSource = new EventSource(searchUrl);
                     // 初始化搜索结果数组，如果有本地资源则先加入
                     searchResults = hasLocalData ? [...localSearchResults] : [];
-                    var maxResults = 60;
+                    var maxResults = 20;
                     var isClosed = false;
                     var localCount = searchResults.length;
 
@@ -1140,7 +1502,12 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 }
                 html += '</div></div>';
                 html += '<div class="search-result-actions">';
-                html += '<span class="search-result-btn get"><i class="iconfont icon-xiazai"></i> 获取资源</span>';
+                if (isTypeNum === 11 && window.searchModule && typeof window.searchModule.novelActionsHtml === 'function') {
+                    // 小说项：按小说服务后台配置渲染按钮（逐盘"存入XX网盘"或"下载"）
+                    html += window.searchModule.novelActionsHtml();
+                } else {
+                    html += '<span class="search-result-btn get"><i class="iconfont icon-xiazai"></i> 获取资源</span>';
+                }
                 html += '</div></div>';
                 return html;
             };
@@ -1282,9 +1649,6 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
             
             // 逐条检测搜索结果的链接
             window.batchCheckLinksForSearchResults = async function() {
-                // 后台「检测资源」开关关闭时不进行检测
-                if (!window.__linkCheckEnabled) return;
-
                 // 如果正在检测，先停止之前的
                 if (window.isCheckingLinks) {
                     window.stopLinkChecking();
@@ -1499,7 +1863,17 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 }
                 var item = window.currentSearchData[index];
                 if (!item) return;
-                window.searchModule.openResource(item);
+                var sm = window.searchModule;
+                if (!sm) return;
+                // 多网盘下拉：触发按钮只开合菜单；菜单项按所选盘转存
+                var menuClick = typeof sm.novelMenuClick === 'function' ? sm.novelMenuClick(event) : null;
+                if (menuClick) {
+                    if (menuClick.panType) sm.openResource(item, menuClick.panType);
+                    return;
+                }
+                // 小说按盘按钮：携带被点按钮的网盘类型，仅转存对应网盘
+                var panType = typeof sm.panTypeFromEvent === 'function' ? sm.panTypeFromEvent(event) : '';
+                sm.openResource(item, panType);
             };
             
             // 绑定到window，供全局调用
@@ -1917,6 +2291,24 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 // 加载热搜词
                 loadHotKeywords();
 
+                if (isNovelPage) {
+                    // 小说板块：不加载首页榜单/轮播，初始化番茄榜单
+                    // 下载进度 SSE 由独立模块 novel-downloader.js 全局维护（连接在 boot() 里建立一次），
+                    // 避免重复 EventSource 占用服务端连接 / 客户端资源
+                    loadNovelCategories();
+                    loadNovelBooks();
+                } else if (isBaiduNovelPage) {
+                    // 百度小说板块：加载分类；URL 带 wd 时进入搜索模式
+                    loadBnCategories();
+                    const bnWd = (keyword.value || '').trim();
+                    if (bnWd) {
+                        bnMode.value = 'search';
+                        bnSearchWord.value = bnWd;
+                        loadBnSearch(1);
+                    } else {
+                        loadBnBooks(1);
+                    }
+                } else {
                 // 加载分类热搜卡片
                 loadHotCategories();
 
@@ -1950,19 +2342,10 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                         }
                     }
                 }
+                }
 
                 window.addEventListener('scroll', handleScroll);
                 window.addEventListener('resize', handleDeviceType);
-
-                // 首页公告弹窗：仅首页、有内容、且未在7日内关闭过才显示
-                const pathname = window.location.pathname;
-                const isHomepage = pathname === '/' || pathname === '/index' || pathname === '/index/index/index';
-                if (isHomepage && (noticeImage.value || noticeText.value)) {
-                    const dismissUntil = localStorage.getItem('notice_dismiss_until');
-                    if (!dismissUntil || Date.now() > parseInt(dismissUntil)) {
-                        noticeVisible.value = true;
-                    }
-                }
             });
 
             // 组件卸载时移除滚动监听
@@ -1970,10 +2353,11 @@ echo 'window.__BANNER_LIST = ' . json_encode($__bannerItems, JSON_UNESCAPED_UNIC
                 window.removeEventListener('scroll', handleScroll);
                 window.removeEventListener('resize', handleDeviceType);
                 stopBannerAuto();
+                // 下载进度 SSE 由 novel-downloader.js 全局维护，组件卸载无需关闭
             });
 
             // 返回数据和方法
-            return { elementOpacity, scrollThreshold, keyword, searchBtn, searchOnly, rankList,newList, setnum, qcodeVisible, layerVisible, content, saveBtn, rankDj,goLink,changeBtn,copyText,copyToClipboard,drawer,selectBtn,is_m,QList,QLoading,total_result,currentSource,dialogUrl,dialogLoading,dialogItem,is_type,pc_type,panTypeMap,getResource,showResourceDialog,showDetail, tmdbData, tmdbLoading, hotKeywords, loadHotKeywords, searchHotKeyword, downloadWithThunder, currentTheme, toggleTheme, hotCategories, hotCategoryData, searchByTitle, bannerClick, showHotCategoryResource, defaultCover, onCoverError, searchDialogVisible, searchDialogStage, searchSelectedPanType, selectPanAndSearch, startMultiSearch, selectAllPanTypes, clearPanTypes, resultFilterPanType, availableResultTabs, setResultFilterPanType, backToSelectPanType, switchPanFromResource, onDialogKeywordEnter, bannerList, bannerIndex, bannerGo, onBannerTouchStart, onBannerTouchEnd, openSearchDialog, noticeVisible, noticeImage, noticeText, dismissNotice };
+            return { elementOpacity, scrollThreshold, keyword, searchBtn, searchOnly, rankList,newList, setnum, qcodeVisible, layerVisible, content, saveBtn, rankDj,goLink,changeBtn,copyText,copyToClipboard,drawer,selectBtn,is_m,QList,QLoading,total_result,currentSource,dialogUrl,dialogLoading,dialogItem,is_type,pc_type,panTypeMap,getResource,showResourceDialog,showDetail, tmdbData, tmdbLoading, hotKeywords, loadHotKeywords, searchHotKeyword, downloadWithThunder, currentTheme, toggleTheme, hotCategories, hotCategoryData, searchByTitle, showHotCategoryResource, defaultCover, onCoverError, searchDialogVisible, searchDialogStage, searchSelectedPanType, selectPanAndSearch, startMultiSearch, selectAllPanTypes, clearPanTypes, resultFilterPanType, availableResultTabs, setResultFilterPanType, backToSelectPanType, switchPanFromResource, onDialogKeywordEnter, bannerList, bannerIndex, bannerGo, onBannerClick, openSearchDialog, isNovelPage, navbarSearch, novelTab, novelTabs, novelTabLabel, novelCategories, novelCategoryId, novelBooks, novelLoading, switchNovelTab, switchNovelCategory, openNovelBook, isBaiduNovelPage, bnCategories, bnCategory, bnBookStatus, bnStatusTabs, bnBooks, bnLoading, bnPage, bnHasMore, bnMode, bnSearchWord, switchBnCategory, switchBnStatus, bnGotoPage, submitBnSearch, clearBnSearch, openBnBook, bnCodeVisible, bnCodeLoading, bnCodeText, bnCodeBook, getBnCode, copyBnCode, closeBnCode };
         }
     })
     .use(ElementPlus)

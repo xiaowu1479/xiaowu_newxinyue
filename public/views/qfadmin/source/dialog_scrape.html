@@ -75,6 +75,6 @@
     <div slot="footer" class="dialog-footer">
         <el-button v-if="!scrapeStarted && !scrapeAborted" type="primary" @click="scrapeStart">开始刮削</el-button>
         <el-button v-if="scrapeStarted && scrapeStat.current < scrapeList.length" @click="scrapeAbort" plain>终止刮削</el-button>
-        <el-button @click="scrapeClose">关闭</el-button>
+        <el-button v-if="scrapeAborted || scrapeStat.current >= scrapeList.length" type="primary" @click="dialogScrape = false">关闭</el-button>
     </div>
 </el-dialog>

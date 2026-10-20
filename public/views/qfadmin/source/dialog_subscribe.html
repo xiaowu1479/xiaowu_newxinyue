@@ -1,0 +1,117 @@
+<!-- 资源订阅管理（PanBot 第三方应用对接版，接口见 doc/third-party-app-integration-complete(1)(1).md §4.3） -->
+<!-- 操作列样式在 source-index.css（#app 模板内不放 style 标签，避免 Vue in-DOM 编译报 side-effects） -->
+<el-dialog title="资源订阅" :visible.sync="dialogSubscribe" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="860px">
+    <!-- 列表视图 -->
+    <div v-show="subscribeView === 'list'" v-loading="subscribeLoading">
+        <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="color:#909399;font-size:13px;">按设置的间隔定时从 PanBot 订阅码拉取资源并自动入库（仅 status=active 的分享，重复链接自动跳过）</span>
+            <el-button type="primary" size="small" icon="el-icon-plus" @click="clickSubscribeAdd">新增订阅</el-button>
+        </div>
+        <el-table :data="subscribeList" size="small" stripe>
+            <el-table-column prop="name" label="名称" min-width="100" show-overflow-tooltip></el-table-column>
+            <el-table-column label="订阅源" min-width="200" show-overflow-tooltip>
+                <template slot-scope="scope">
+                    {{ scope.row.url }}<span v-if="scope.row.code"> · 订阅码 {{ scope.row.code }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="入库" width="80" align="center">
+                <template slot-scope="scope">
+                    <el-tag size="mini" v-if="scope.row.pull_mode == 1">直接</el-tag>
+                    <el-tag size="mini" type="warning" v-else>转存</el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="间隔" width="70" align="center">
+                <template slot-scope="scope">{{ scope.row.interval_minutes }}分</template>
+            </el-table-column>
+            <el-table-column label="最近拉取" width="110" align="center">
+                <template slot-scope="scope">
+                    <div>{{ formatSubscribeTime(scope.row.last_pull_at) }}</div>
+                    <div style="color:#67c23a;font-size:12px;">新增 {{ scope.row.last_new_count || 0 }}</div>
+                </template>
+            </el-table-column>
+            <el-table-column label="状态" width="70" align="center">
+                <template slot-scope="scope">
+                    <el-tag size="mini" :type="scope.row.status == 1 ? 'success' : 'info'">{{ scope.row.status == 1 ? '启用' : '停用' }}</el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="140" align="center">
+                <template slot-scope="scope">
+                    <div class="subscribe-ops">
+                        <el-button type="primary" size="mini" :loading="scope.row._pulling" @click="clickPullSubscribe(scope.row)">拉取</el-button>
+                        <el-dropdown trigger="click" @command="handleSubscribeCommand" class="subscribe-more">
+                            <span class="el-dropdown-link subscribe-more-link">更多<i class="el-icon-arrow-down el-icon--right"></i></span>
+                            <el-dropdown-menu slot="dropdown">
+                                <el-dropdown-item :command="{action: 'edit', row: scope.row}"><i class="el-icon-edit"></i> 编辑</el-dropdown-item>
+                                <el-dropdown-item v-if="scope.row.status == 1" :command="{action: 'disable', row: scope.row}"><i class="el-icon-turn-off"></i> 停用</el-dropdown-item>
+                                <el-dropdown-item v-else :command="{action: 'enable', row: scope.row}"><i class="el-icon-open"></i> 启用</el-dropdown-item>
+                                <el-dropdown-item divided class="subscribe-danger-item" :command="{action: 'delete', row: scope.row}"><i class="el-icon-delete"></i> 删除</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </el-dropdown>
+                    </div>
+                </template>
+            </el-table-column>
+        </el-table>
+        <el-alert v-for="row in subscribeErrors" :key="row.subscribe_id" type="error" :closable="false" style="margin-top:8px;"
+            :title="row.name + '：' + row.last_error"></el-alert>
+    </div>
+
+    <!-- 表单视图 -->
+    <el-form :model="subscribeForm" v-show="subscribeView === 'form'" label-width="110px">
+        <el-form-item label="订阅名称" required>
+            <el-input v-model="subscribeForm.name" placeholder="如：每日影视资源" maxlength="100"></el-input>
+        </el-form-item>
+        <el-form-item label="服务地址" required>
+            <el-input v-model="subscribeForm.url" placeholder="PanBot 服务根地址，如 https://panbot.example.com" maxlength="500"></el-input>
+            <div style="color:#909399;font-size:12px;">系统自动拼接 /api/v1/third-party/subscription-codes/{订阅码} 调用订阅查询接口</div>
+        </el-form-item>
+        <el-form-item label="订阅码" required>
+            <el-input v-model="subscribeForm.code" placeholder="PanBot 后台下发的订阅码" maxlength="200"></el-input>
+        </el-form-item>
+        <el-form-item label="client_id" required>
+            <el-input v-model="subscribeForm.client_id" placeholder="第三方应用凭证，形如 tpa_xxxx..." maxlength="100"></el-input>
+        </el-form-item>
+        <el-form-item label="client_secret" required>
+            <el-input v-model="subscribeForm.client_secret" placeholder="应用密钥（仅存服务端，不会下发前端展示）" maxlength="200" show-password></el-input>
+        </el-form-item>
+        <el-form-item label="拉取范围说明">
+            <span style="color:#909399;font-size:12px;line-height:1.6;">
+                按文档 §4.3 订阅查询接口分页拉取（每页 50 条，单次最多 50 页）；<br>
+                仅入库 status=active 的分享（expired/not_found/invalid 自动跳过）；<br>
+                标题←title，链接←share_url，提取码←passcode，封面←cover_url，描述←description
+            </span>
+        </el-form-item>
+        <el-form-item label="资源分类">
+            <el-select size="medium" v-model="subscribeForm.source_category_id" placeholder="请选择分类" clearable style="width:100%;">
+                <el-option v-for="item in category" :key="item.source_category_id" :label="item.name" :value="item.source_category_id"></el-option>
+            </el-select>
+        </el-form-item>
+        <el-form-item label="资源时效">
+            <el-select size="medium" v-model="subscribeForm.is_time" style="width:100%;">
+                <el-option label="永久资源" :value="0"></el-option>
+                <el-option label="临时资源" :value="1"></el-option>
+                <el-option label="外部资源" :value="2"></el-option>
+            </el-select>
+        </el-form-item>
+        <el-form-item label="入库方式">
+            <el-radio-group v-model="subscribeForm.pull_mode">
+                <el-radio :label="1">直接入库</el-radio>
+                <el-radio :label="2">转存后入库</el-radio>
+            </el-radio-group>
+            <div style="color:#909399;font-size:12px;" v-if="subscribeForm.pull_mode == 1">拉取到的资源去重后直接写入资源表，前台立即可搜</div>
+            <div style="color:#909399;font-size:12px;" v-else>资源链接先转存到自己网盘再分享入库（仅支持网盘分享链接，需网盘 Cookie 有效）</div>
+        </el-form-item>
+        <el-form-item label="拉取间隔">
+            <el-input-number v-model="subscribeForm.interval_minutes" :min="5" :max="1440" :step="5"></el-input-number>
+            <span style="color:#909399;font-size:12px;margin-left:8px;">分钟（最小 5；订阅增量轮询建议分钟级以上）</span>
+        </el-form-item>
+        <el-form-item>
+            <el-button @click="subscribeView = 'list'">返 回</el-button>
+            <el-button type="primary" :loading="subscribeSaving" @click="saveSubscribe">保 存</el-button>
+        </el-form-item>
+    </el-form>
+
+    <div slot="footer" class="dialog-footer" v-show="subscribeView === 'list'">
+        <el-button @click="dialogSubscribe = false">关 闭</el-button>
+    </div>
+</el-dialog>

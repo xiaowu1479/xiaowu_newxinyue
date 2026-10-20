@@ -1,0 +1,496 @@
+{include file="novel/common/header"}
+
+<body>
+
+<div id="app" v-cloak>
+    <!-- 顶栏 -->
+    <header class="nv-header">
+        <div class="nv-container nv-header-inner">
+            <a class="nv-brand" href="/">
+                <span class="nv-brand-icon">书</span>
+                <span class="nv-brand-name">{$config.app_name|default="小说站"}</span>
+            </a>
+            <div class="nv-search">
+                <input
+                    class="nv-search-input"
+                    type="text"
+                    v-model="searchKeyword"
+                    placeholder="搜索书名或作者..."
+                    @keyup.enter="openSearch(searchKeyword)"
+                />
+                <button class="nv-search-btn" @click="openSearch(searchKeyword)">搜索</button>
+            </div>
+            <div class="nv-header-actions">
+                <button class="nv-theme-btn" @click="toggleTheme" :title="theme === 'dark' ? '切换到日间' : '切换到夜间'">
+                    <span v-if="theme === 'dark'">☀</span>
+                    <span v-else>☾</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="nv-container nv-main">
+        <!-- Hero：主编推荐 Banner 轮播 + 人气阅读榜 -->
+        <div class="nv-hero" :class="{ 'nv-hero-full': !recommends.length }">
+            <section class="nv-section nv-banner" v-if="recommends.length" @mouseenter="recPause" @mouseleave="recResume">
+                <div class="nv-banner-viewport">
+                    <div class="nv-banner-track" :style="{ transform: 'translateX(-' + recPage * 100 + '%)' }">
+                        <div
+                            class="nv-banner-slide"
+                            v-for="(r, i) in recommends"
+                            :key="r.novel_recommend_id || i"
+                            @click="clickRecommend(r)"
+                        >
+                            <div
+                                class="nv-banner-bg"
+                                v-if="r.novel_recommend_cover"
+                                :style="{ backgroundImage: 'url(' + r.novel_recommend_cover + ')' }"
+                            ></div>
+                            <div class="nv-banner-inner">
+                                <div class="nv-banner-cover">
+                                    <img
+                                        v-if="r.novel_recommend_cover"
+                                        :src="r.novel_recommend_cover"
+                                        :alt="r.novel_recommend_title"
+                                        loading="lazy"
+                                        @error="r.novel_recommend_cover = ''"
+                                    />
+                                    <div v-else class="nv-banner-fallback">{{ r.novel_recommend_title }}</div>
+                                </div>
+                                <div class="nv-banner-info">
+                                    <span class="nv-banner-tag">主编推荐 <b>No.{{ i + 1 }}</b></span>
+                                    <h3 class="nv-banner-title">{{ r.novel_recommend_title }}</h3>
+                                    <span class="nv-banner-cta">立即阅读 &rsaquo;</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <template v-if="recommends.length > 1">
+                    <button type="button" class="nv-banner-arrow prev" @click="recPrev" aria-label="上一张">&#8249;</button>
+                    <button type="button" class="nv-banner-arrow next" @click="recNext" aria-label="下一张">&#8250;</button>
+                    <div class="nv-banner-dots">
+                        <span
+                            v-for="(r, p) in recommends"
+                            :key="'dot' + p"
+                            class="nv-banner-dot"
+                            :class="{ active: p === recPage }"
+                            @click="recGo(p)"
+                        ></span>
+                    </div>
+                </template>
+            </section>
+            <aside class="nv-section nv-hero-side">
+                <div class="nv-section-head">
+                    <h2 class="nv-section-title"><span class="nv-title-icon">榜</span>人气阅读榜</h2>
+                </div>
+                <div class="nv-loading nv-loading-sm" v-if="sideLoading"><span class="nv-spinner"></span><br />加载中...</div>
+                <ul class="nv-side-list" v-else-if="sideRank.length">
+                    <li
+                        v-for="(book, i) in sideRank.slice(0, 8)"
+                        :key="book.url || i"
+                        @click="openSearch(book.title)"
+                    >
+                        <span class="nv-li-index" :class="{ 'nv-index-hot': i < 3 }">{{ i + 1 }}</span>
+                        <span class="nv-li-name">{{ book.title }}</span>
+                    </li>
+                </ul>
+                <div class="nv-empty nv-empty-sm" v-else>暂无数据</div>
+            </aside>
+        </div>
+
+        <!-- 新书推荐 -->
+        <section class="nv-section">
+            <div class="nv-section-head">
+                <h2 class="nv-section-title"><span class="nv-title-icon">荐</span>新书推荐</h2>
+            </div>
+            <div class="nv-loading" v-if="featuredLoading"><span class="nv-spinner"></span><br />加载中...</div>
+            <div class="nv-featured-grid" v-else-if="featuredBooks.length">
+                <div
+                    class="nv-featured-card"
+                    v-for="(book, i) in featuredBooks"
+                    :key="book.url || i"
+                    @click="openSearch(book.title)"
+                >
+                    <div class="nv-cover">
+                        <img
+                            v-if="book.cover"
+                            :src="book.cover"
+                            :alt="book.title"
+                            loading="lazy"
+                            @error="book.cover = ''"
+                        />
+                        <div v-else class="nv-cover-fallback">{{ book.title }}</div>
+                        <span v-if="i < 3" class="nv-rank-badge" :class="'top-' + (i + 1)">{{ i + 1 }}</span>
+                    </div>
+                    <p class="nv-book-name">{{ book.title }}</p>
+                    <p class="nv-book-author">{{ book.author || '佚名' }}</p>
+                </div>
+            </div>
+            <div class="nv-empty" v-else>暂无数据</div>
+        </section>
+
+        <!-- 分类板块（2×2） -->
+        <div class="nv-panels">
+            <section class="nv-panel" v-for="panel in panels" :key="panel.categoryId">
+                <div class="nv-panel-head">
+                    <h3 class="nv-panel-title">{{ panel.name }}</h3>
+                </div>
+                <div class="nv-loading nv-loading-sm" v-if="panel.loading"><span class="nv-spinner"></span><br />加载中...</div>
+                <template v-else-if="panel.books.length">
+                    <div class="nv-panel-covers">
+                        <div
+                            class="nv-panel-cover-card"
+                            v-for="(book, i) in panel.books.slice(0, 2)"
+                            :key="book.url || i"
+                            @click="openSearch(book.title)"
+                        >
+                            <div class="nv-cover">
+                                <img
+                                    v-if="book.cover"
+                                    :src="book.cover"
+                                    :alt="book.title"
+                                    loading="lazy"
+                                    @error="book.cover = ''"
+                                />
+                                <div v-else class="nv-cover-fallback">{{ book.title }}</div>
+                                <span class="nv-rank-badge">{{ i + 1 }}</span>
+                            </div>
+                            <p class="nv-book-name">{{ book.title }}</p>
+                            <p class="nv-book-author">{{ book.author || '佚名' }}</p>
+                        </div>
+                    </div>
+                    <ul class="nv-panel-list">
+                        <li
+                            v-for="(book, i) in panel.books.slice(2)"
+                            :key="book.url || i"
+                            @click="openSearch(book.title)"
+                        >
+                            <span class="nv-li-index" :class="{ 'nv-index-hot': i < 3 }">{{ i + 3 }}</span>
+                            <span class="nv-li-name">{{ book.title }}</span>
+                            <span class="nv-li-author">{{ book.author || '佚名' }}</span>
+                        </li>
+                    </ul>
+                </template>
+                <div class="nv-empty nv-empty-sm" v-else>暂无数据</div>
+            </section>
+        </div>
+
+        <!-- 更新列表（全宽双列） -->
+        <section class="nv-section">
+            <div class="nv-section-head">
+                <h2 class="nv-section-title"><span class="nv-title-icon">更</span>更新列表</h2>
+            </div>
+            <div class="nv-loading" v-if="updateLoading"><span class="nv-spinner"></span><br />加载中...</div>
+            <ul class="nv-update-list" v-else-if="updateList.length">
+                <li
+                    v-for="(book, i) in updateList"
+                    :key="book.url || i"
+                    @click="openSearch(book.title)"
+                >
+                    <span class="nv-li-tag">{{ updateTagName }}</span>
+                    <span class="nv-li-name">{{ book.title }}</span>
+                    <span class="nv-li-author">{{ book.author || '佚名' }}</span>
+                </li>
+            </ul>
+            <div class="nv-empty" v-else>暂无数据</div>
+        </section>
+    </main>
+
+    {include file="novel/common/foot"}
+
+    <!-- 搜索弹窗 -->
+    <div class="nv-dialog-mask" v-if="searchVisible" @click.self="closeSearch">
+        <div class="nv-dialog">
+            <div class="nv-dialog-head">
+                <div class="nv-dialog-search">
+                    <input
+                        type="text"
+                        v-model="searchKeyword"
+                        placeholder="输入书名或作者..."
+                        @keyup.enter="doSearch"
+                    />
+                    <button @click="doSearch">搜索</button>
+                </div>
+                <button class="nv-dialog-close" @click="closeSearch">×</button>
+            </div>
+            <div class="nv-dialog-body">
+                <div class="nv-empty" v-if="searchLoading">正在全网搜索...</div>
+                <div class="nv-empty" v-else-if="!searchResults.length">未找到相关书籍，换个关键词试试</div>
+                <div class="nv-search-result" v-for="(item, i) in searchResults" :key="i" @click="downloadBook(item)">
+                    <div class="nv-search-cover">
+                        <img v-if="item.cover" :src="item.cover" :alt="item.title" loading="lazy" @error="item.cover = ''" />
+                        <span v-else>无封面</span>
+                    </div>
+                    <div class="nv-search-info">
+                        <p class="nv-search-title">{{ item.title }}</p>
+                        <p class="nv-search-meta">
+                            <span v-if="item.author">{{ item.author }}</span>
+                            <span v-if="item.sourceName" class="nv-search-source">{{ item.sourceName }}</span>
+                        </p>
+                        <p class="nv-search-latest" v-if="item.latestChapter">最新：{{ item.latestChapter }}</p>
+                    </div>
+                    <button class="nv-search-action" @click.stop="downloadBook(item)">下载</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <transition name="nv-fade">
+        <div class="nv-toast" v-if="toastVisible">{{ toastMessage }}</div>
+    </transition>
+</div>
+
+<script src="__STATIC__/simple/common/static/js/vue.global.min.js"></script>
+<script src="__STATIC__/simple/common/static/js/axios.min.js"></script>
+<script src="__STATIC__/simple/common/static/js/novel-downloader.js"></script>
+<script>
+const { createApp, ref, onMounted } = Vue;
+
+createApp({
+    setup() {
+        /* ---------- 主题 ---------- */
+        var theme = ref(document.documentElement.getAttribute('data-theme') || 'dark');
+        function toggleTheme() {
+            var next = theme.value === 'dark' ? 'light' : 'dark';
+            theme.value = next;
+            localStorage.setItem('novel-theme', next);
+            document.documentElement.setAttribute('data-theme', next);
+        }
+
+        /* ---------- Toast ---------- */
+        var toastVisible = ref(false);
+        var toastMessage = ref('');
+        var toastTimer = null;
+        function showToast(msg) {
+            toastMessage.value = msg;
+            toastVisible.value = true;
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(function() { toastVisible.value = false; }, 3000);
+        }
+
+        /* ---------- Banner 轮播（后台推荐位，单张大图） ---------- */
+        var recommends = ref([]);
+        var recPage = ref(0);
+        var recTimer = null;
+        function recGo(p) {
+            var total = recommends.value.length;
+            if (!total) { return; }
+            recPage.value = (p + total) % total;
+        }
+        function recNext() { recGo(recPage.value + 1); }
+        function recPrev() { recGo(recPage.value - 1); }
+        function recStart() {
+            recStop();
+            recTimer = setInterval(function() {
+                if (recommends.value.length > 1) { recNext(); }
+            }, 5000);
+        }
+        function recStop() {
+            if (recTimer) { clearInterval(recTimer); recTimer = null; }
+        }
+        function recPause() { recStop(); }
+        function recResume() { recStart(); }
+        function loadRecommends() {
+            axios.get('/api/other/novel_recommend', { params: { limit: 12 }, timeout: 15000 })
+                .then(function(res) {
+                    if (res.data.code === 200 && Array.isArray(res.data.data)) {
+                        recommends.value = res.data.data;
+                        recPage.value = 0;
+                        recStart();
+                    }
+                })
+                .catch(function() {});
+        }
+        function clickRecommend(r) {
+            if (r.novel_recommend_link) {
+                window.open(r.novel_recommend_link);
+            } else {
+                openSearch(r.novel_recommend_title);
+            }
+        }
+
+        /* ---------- 榜单数据通用请求 ---------- */
+        function fetchCategories(gender) {
+            return axios.get('/api/other/novel_rank', {
+                params: { action: 'categories', gender: gender },
+                timeout: 20000
+            }).then(function(res) {
+                if (res.data.code === 200 && res.data.data) {
+                    var list = gender === 1 ? res.data.data.male : res.data.data.female;
+                    return Array.isArray(list) ? list : [];
+                }
+                return [];
+            }).catch(function() { return []; });
+        }
+        function fetchBooks(gender, rankMold, categoryId, limit) {
+            return axios.get('/api/other/novel_rank', {
+                params: { action: 'books', gender: gender, rankMold: rankMold, categoryId: categoryId, limit: limit },
+                timeout: 20000
+            }).then(function(res) {
+                if (res.data.code === 200 && res.data.data && Array.isArray(res.data.data.books)) {
+                    return res.data.data.books;
+                }
+                return [];
+            }).catch(function() { return []; });
+        }
+
+        /* ---------- 新书推荐 ---------- */
+        var featuredBooks = ref([]);
+        var featuredLoading = ref(true);
+
+        /* ---------- 分类板块（2×2） ---------- */
+        var panels = ref([]);
+
+        /* ---------- 更新列表 ---------- */
+        var updateList = ref([]);
+        var updateLoading = ref(true);
+        var updateTagName = ref('');
+
+        /* ---------- 人气阅读榜侧栏 ---------- */
+        var sideRank = ref([]);
+        var sideLoading = ref(true);
+
+        function initHome() {
+            // 男频：新书推荐 / 分类板块 / 人气榜侧栏
+            fetchCategories(1).then(function(maleCates) {
+                var firstId = maleCates.length ? maleCates[0].id : '1141';
+                // 新书推荐：男频新书榜前 6
+                fetchBooks(1, 1, firstId, 6).then(function(books) {
+                    featuredBooks.value = books;
+                    featuredLoading.value = false;
+                });
+                // 人气阅读榜侧栏：男频阅读榜前 30
+                fetchBooks(1, 2, firstId, 30).then(function(books) {
+                    sideRank.value = books;
+                    sideLoading.value = false;
+                });
+                // 分类板块：男频前 4 个分类，每块 2 封面 + 10 条文字
+                panels.value = maleCates.slice(0, 4).map(function(c) {
+                    return { categoryId: c.id, name: c.name, books: [], loading: true };
+                });
+                panels.value.forEach(function(p, idx) {
+                    fetchBooks(1, 2, p.categoryId, 12).then(function(books) {
+                        panels.value[idx].books = books;
+                        panels.value[idx].loading = false;
+                    });
+                });
+            });
+            // 女频：更新列表（女频第一分类阅读榜前 30）
+            fetchCategories(0).then(function(femaleCates) {
+                if (!femaleCates.length) {
+                    updateLoading.value = false;
+                    return;
+                }
+                updateTagName.value = femaleCates[0].name;
+                fetchBooks(0, 2, femaleCates[0].id, 30).then(function(books) {
+                    updateList.value = books;
+                    updateLoading.value = false;
+                });
+            });
+        }
+
+        /* ---------- 搜索弹窗 ---------- */
+        var searchVisible = ref(false);
+        var searchKeyword = ref('');
+        var searchLoading = ref(false);
+        var searchResults = ref([]);
+
+        function openSearch(keyword) {
+            searchKeyword.value = keyword || '';
+            searchVisible.value = true;
+            searchResults.value = [];
+            if (searchKeyword.value) {
+                doSearch();
+            }
+        }
+        function closeSearch() {
+            searchVisible.value = false;
+            searchLoading.value = false;
+        }
+        function doSearch() {
+            var title = (searchKeyword.value || '').trim();
+            if (!title) return;
+            searchLoading.value = true;
+            searchResults.value = [];
+            axios.get('/api/other/novel_search', {
+                params: { title: title, searchLimit: 20 },
+                timeout: 40000
+            }).then(function(res) {
+                if (res.data.code === 200 && res.data.data && Array.isArray(res.data.data)) {
+                    searchResults.value = res.data.data.map(function(item) {
+                        return {
+                            title: item.title || item.bookName || '未知书名',
+                            url: item.url || item.bookUrl || '',
+                            author: item.author || '',
+                            cover: item.cover || '',
+                            latestChapter: item.latestChapter || '',
+                            source: item.source || '',
+                            sourceName: item.sourceName || ''
+                        };
+                    });
+                }
+                searchLoading.value = false;
+            }).catch(function() {
+                searchLoading.value = false;
+                showToast('搜索超时或失败，请重试');
+            });
+        }
+        function downloadBook(item) {
+            if (!window.novelDownloader || typeof window.novelDownloader.startTask !== 'function') {
+                showToast('下载组件未加载');
+                return;
+            }
+            window.novelDownloader.startTask({
+                title: item.title,
+                url: item.url,
+                author: item.author,
+                cover: item.cover,
+                latestChapter: item.latestChapter
+            });
+            showToast('已加入下载队列');
+        }
+
+        onMounted(function() {
+            loadRecommends();
+            initHome();
+        });
+
+        return {
+            theme: theme,
+            toggleTheme: toggleTheme,
+            toastVisible: toastVisible,
+            toastMessage: toastMessage,
+            recommends: recommends,
+            clickRecommend: clickRecommend,
+            recPage: recPage,
+            recPrev: recPrev,
+            recNext: recNext,
+            recGo: recGo,
+            recPause: recPause,
+            recResume: recResume,
+            featuredBooks: featuredBooks,
+            featuredLoading: featuredLoading,
+            panels: panels,
+            updateList: updateList,
+            updateLoading: updateLoading,
+            updateTagName: updateTagName,
+            sideRank: sideRank,
+            sideLoading: sideLoading,
+            searchKeyword: searchKeyword,
+            searchVisible: searchVisible,
+            searchLoading: searchLoading,
+            searchResults: searchResults,
+            openSearch: openSearch,
+            closeSearch: closeSearch,
+            doSearch: doSearch,
+            downloadBook: downloadBook
+        };
+    }
+}).mount('#app');
+    // 移除 header 设置的加载遮罩标记，显示页面内容
+    document.documentElement.removeAttribute('data-page-loading');
+</script>
+</body>
+</html>

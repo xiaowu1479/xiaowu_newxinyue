@@ -15,6 +15,8 @@ Route::get('ranking', 'index/ranking');
 Route::get('latest', 'index/latest');
 Route::get('top250', 'index/index/top250');
 Route::get('game', 'index/index/gameRanking');
+Route::get('novel', 'index/index/novel');
+Route::get('baidu_novel', 'index/index/baiduNovel');
 
 
  

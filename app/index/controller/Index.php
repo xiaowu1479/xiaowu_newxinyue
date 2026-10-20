@@ -61,6 +61,11 @@ class Index extends QfShop
             }
             Cache::set('home_pan_type_map', $panTypeMap, 600);
         }
+        // 小说线路（is_type=11）独立为小说板块（/novel 固定单线路搜索），不作为通用搜索线路展示，
+        // 避免线路选择弹窗中「小说」与网盘线路混排产生歧义；
+        // api_list 中的小说线路本身保留（/api/other/novel_search 转发依赖），仅从线路选择入口剔除。
+        // unset 放在缓存读取之后：旧缓存命中时同样立即生效，无需等 600s 过期
+        unset($panTypeMap['11']);
         return $panTypeMap;
     }
 
@@ -85,7 +90,7 @@ class Index extends QfShop
         $newList = Cache::get('home_new_list');
         if (empty($newList) && config("qfshop.home_new") == 0) {
             $map[] = ['status', '=', 1];
-            $map[] = ['is_time', 'in', [0, 2]];
+            $map[] = ['is_time', '=', 0];
             $map[] = ['is_delete', '=', 0];
             $newList = $this->SourceModel->order(['create_time' => 'desc'])
                 ->field('title,create_time as time,source_id as id')
@@ -124,7 +129,7 @@ class Index extends QfShop
                 } else {
                     $map = [
                         ['status', '=', 1],
-                        ['is_time', 'in', [0, 2]],
+                        ['is_time', '=', 0],
                         ['is_delete', '=', 0],
                     ];
                     $list = $this->SourceModel->order(['create_time' => 'desc'])
@@ -150,42 +155,8 @@ class Index extends QfShop
         $config = config("qfshop");
 
         // 从数据库获取有线路的网盘类型，按weight排序（缓存10分钟）
-        $panTypeMap = Cache::get('home_pan_type_map');
-        if (empty($panTypeMap)) {
-            $panTypeMap = [];
-            try {
-                $apiLines = $this->ApiListModel
-                    ->where('status', 1)
-                    ->field('pantype, MAX(weight) as max_weight')
-                    ->group('pantype')
-                    ->order('max_weight', 'desc')
-                    ->select()
-                    ->toArray();
-                
-                // 获取配置中的网盘类型名称
-                $panTypesConfig = config('pan_types');
-                foreach ($apiLines as $line) {
-                    $pantype = (string) $line['pantype'];  // 强制转为字符串，确保key类型一致
-                    if (isset($panTypesConfig[$pantype])) {
-                        $panTypeMap[$pantype] = $panTypesConfig[$pantype]['name'];
-                    }
-                }
-                
-                // 如果数据库没有线路数据，使用默认配置
-                if (empty($panTypeMap)) {
-                    foreach ($panTypesConfig as $type) {
-                        $panTypeMap[(string) $type['id']] = $type['name'];  // 强制转为字符串
-                    }
-                }
-            } catch (\Exception $e) {
-                // 如果数据库查询失败，使用默认配置
-                $panTypesConfig = config('pan_types');
-                foreach ($panTypesConfig as $type) {
-                    $panTypeMap[(string) $type['id']] = $type['name'];  // 强制转为字符串
-                }
-            }
-            Cache::set('home_pan_type_map', $panTypeMap, $cacheTime);
-        }
+        // 与 getPanTypeMap() 保持单一实现：线路剔除逻辑（小说线路独立）只在 getPanTypeMap() 中维护
+        $panTypeMap = $this->getPanTypeMap();
 
         // 获取搜索统计数据
         $searchStats = getSearchStats();
@@ -244,10 +215,6 @@ class Index extends QfShop
         if (!$blocked) {
             // 没有屏蔽关键词才去查询
             $list = $this->SourceModel->getList($data);
-            // 加密外部资源(is_time=2)链接，前端通过 save_url 转存后显示
-            if (!empty($list['items'])) {
-                encryptExternalUrls($list['items']);
-            }
         }
 
 
@@ -351,14 +318,6 @@ class Index extends QfShop
             return redirect('/');
         }
 
-        // 外部资源(is_time=2)加密链接，前端通过 save_url 转存后显示
-        // 仅当后台已挂载对应网盘时才加密（走转存流程），否则前端直接显示原链接
-        if (isset($detail['is_time']) && $detail['is_time'] == 2 && !empty($detail['url'])) {
-            if (strpos($detail['url'], 'http') === 0 && hasPanAccount(intval($detail['is_type'] ?? 0))) {
-                $detail['url'] = encryptObject($detail['url']);
-            }
-        }
-
         $rankList = $this->SourceCategoryModel->field('name,image')->where([['status', '=', 0], ['is_sys', '=', 1]])->order('sort desc')->select();
 
         //热门排行榜数据
@@ -441,7 +400,7 @@ class Index extends QfShop
         $map = [];
 
         $map[] = ['status', '=', 1];
-        $map[] = ['is_time', 'in', [0, 2]];
+        $map[] = ['is_time', '=', 0];
 
         if (!empty($data['type'])) {
             // 将 $data['type'] 转换为时间戳
@@ -503,7 +462,6 @@ class Index extends QfShop
         $map = [];
         $map[] = ['status', '=', 1];
         $map[] = ['is_delete', '=', 0];
-        $map[] = ['is_time', 'in', [0, 2]];
 
         if ($categoryId > 0) {
             $map[] = ['source_category_id', '=', $categoryId];
@@ -511,7 +469,7 @@ class Index extends QfShop
 
         // 获取资源列表
         $result = $this->SourceModel->where($map)
-            ->field('source_id as id,title,url,code,description,create_time as time,is_type,source_category_id,vod_pic as src,is_time')
+            ->field('source_id as id,title,url,code,description,create_time as time,is_type,source_category_id,vod_pic as src')
             ->order(['create_time' => 'desc'])
             ->paginate([
                 'list_rows' => $pageSize,
@@ -533,8 +491,6 @@ class Index extends QfShop
 
         // 转换为数组供JavaScript使用
         $listArray = $result->items();
-        // 加密外部资源(is_time=2)链接，前端通过 save_url 转存后显示
-        encryptExternalUrls($listArray);
 
         // 获取当前分类名称
         $currentCategoryName = '全部';
@@ -549,18 +505,6 @@ class Index extends QfShop
 
         // 获取网盘类型映射
         $panTypeMap = $this->getPanTypeMap();
-
-        // 获取网盘类型列表（用于前端筛选，排除磁力链接）
-        $panTypesConfig = config('pan_types');
-        $panTypeList = [];
-        foreach ($panTypesConfig as $type) {
-            if ($type['id'] != 9) {
-                $panTypeList[] = [
-                    'id' => $type['id'],
-                    'name' => $type['name']
-                ];
-            }
-        }
 
         // 热门排行榜数据
         $hotList = [];
@@ -607,7 +551,6 @@ class Index extends QfShop
         View::assign('category_id', $categoryId);
         View::assign('currentCategoryName', $currentCategoryName);
         View::assign('panTypeMap', $panTypeMap);
-        View::assign('panTypeList', $panTypeList);
         View::assign('rankList', $rankList);
         View::assign('hotList', $hotList);
         View::assign('config', $config);
@@ -667,6 +610,51 @@ class Index extends QfShop
     }
 
     /**
+     * @description: 小说搜索页（独立版块，调用 /api/other/web_search?is_type=11）
+     * @return \think\Response
+     */
+    public function novel()
+    {
+        $config = config("qfshop");
+        $keyword = trim((string) input('wd', input('keyword', '')));
+
+        View::assign('config', $config);
+        View::assign('keyword', $keyword);
+        View::assign('category_id', 0);
+        View::assign('fixed', 1);
+        View::assign('panTypeMap', $this->getPanTypeMap());
+        View::assign('seo_title', '小说搜索 - ' . $config['app_name']);
+        View::assign('seo_keywords', '小说,小说搜索,在线阅读,' . $config['app_keywords']);
+        View::assign('seo_description', '聚合多个书源的小说搜索，发现更多好书。' . $config['app_description']);
+
+        // 固定走 simple 模板（novel.html 依赖 simple 模板的 css/js/include 结构）
+        // 用绝对路径 /simple/novel 从视图根目录开始查找，兼容 fetchFrontendView 的解析规则
+        return View::fetch('/simple/novel');
+    }
+
+    /**
+     * @description: 百度小说板块页（数据代理百度 novelmaster，需后台扫码绑定百度账号）
+     * @return \think\Response
+     */
+    public function baiduNovel()
+    {
+        $config = config("qfshop");
+        $keyword = trim((string) input('wd', input('keyword', '')));
+
+        View::assign('config', $config);
+        View::assign('keyword', $keyword);
+        View::assign('category_id', 0);
+        View::assign('fixed', 1);
+        View::assign('panTypeMap', $this->getPanTypeMap());
+        View::assign('seo_title', '百度小说 - ' . $config['app_name']);
+        View::assign('seo_keywords', '百度小说,百度网盘小说,小说榜单,在线阅读,' . $config['app_keywords']);
+        View::assign('seo_description', '精选百度小说榜单与分类小说，发现更多好书。' . $config['app_description']);
+
+        // 固定走 simple 模板（baidu-novel.html 依赖 simple 模板的 css/js/include 结构）
+        return View::fetch('/simple/baidu-novel');
+    }
+
+    /**
      * @description: 最近更新列表页面
      * @param {*}
      * @return {*}
@@ -679,7 +667,8 @@ class Index extends QfShop
         $panTypes = config('pan_types');
         $panTypeList = [];
         foreach ($panTypes as $type) {
-            if ($type['id'] != 9) { // 排除磁力链接
+            // 排除磁力链接(9)；小说(11)独立为小说板块，不作为通用列表筛选类型
+            if ($type['id'] != 9 && $type['id'] != 11) {
                 $panTypeList[] = [
                     'id' => $type['id'],
                     'name' => $type['name']

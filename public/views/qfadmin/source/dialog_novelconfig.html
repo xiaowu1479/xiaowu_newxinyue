@@ -1,0 +1,46 @@
+<!-- 小说转存配置（转存设置/网盘账户走 xinyue qf_conf + pan-backend；小说服务自身服务级配置不在此维护） -->
+<!-- 布局：转存设置表单；网盘服务连接/令牌统一在「网盘管理」页维护；账户图标取自接口返回的 base64 data URI -->
+<el-dialog title="小说配置" :visible.sync="dialogNovelConfig" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="760px" v-loading="novelCfgLoading">
+    <el-alert v-if="novelCfgError" type="error" :closable="false" style="margin-bottom:12px;"
+        :title="novelCfgError"></el-alert>
+
+    <div class="novel-cfg" style="margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:13px;color:#606266;">
+        <span>小说服务：</span><span>{{ novelCfg.base_url || '-' }}</span>
+    </div>
+
+    <el-form label-width="110px" size="small">
+        <el-form-item label="转存开关">
+            <el-switch v-model="novelCfgPanEnabled" active-text="开启后搜索结果展示「存入XX网盘」按钮并自动转存"></el-switch>
+        </el-form-item>
+        <el-form-item label="目标账户">
+            <el-checkbox-group v-model="novelCfgSelectedAccounts" v-if="novelCfgAccountOptions.length" class="novel-cfg">
+                <el-checkbox v-for="opt in novelCfgAccountOptions" :key="opt.account" :label="opt.account">
+                    <img v-if="opt.icon" :src="opt.icon" class="pan-icon-img" alt="">
+                    <span v-else class="pan-dot" :style="{ background: driveInfo(opt.account).color }"></span>
+                    <span class="novel-cfg-acc-name">{{ driveInfo(opt.account).name }}</span>
+                    <span class="novel-cfg-acc-id">{{ opt.nickname || opt.account }}</span>
+                </el-checkbox>
+            </el-checkbox-group>
+            <span v-else style="color:#909399;font-size:12px;">
+                暂无可用账户{{ novelCfgAccountsError ? '：' + novelCfgAccountsError : '（网盘服务未返回账户列表）' }}
+            </span>
+            <div style="color:#909399;font-size:12px;">勾选的账户即转存目标；未勾选账户仍保留在网盘服务中，仅不参与自动转存</div>
+        </el-form-item>
+        <el-form-item label="网盘目录">
+            <el-input v-model="novelCfgRemoteDir" placeholder="/novel" style="width:220px;" clearable></el-input>
+            <span style="color:#909399;font-size:12px;margin-left:8px;">转存文件在网盘中的保存目录，须以 / 开头</span>
+        </el-form-item>
+        <el-form-item label="并发上限">
+            <el-input-number v-model="novelCfgConcurrency" :min="1" :max="10" label="转存并发上限"></el-input-number>
+            <span style="color:#909399;font-size:12px;margin-left:8px;">同时进行的转存任务数（保存请求为同步执行，勿设过大）</span>
+        </el-form-item>
+        <el-form-item>
+            <el-button type="primary" size="small" :loading="novelCfgPanSaving" @click="saveNovelPanSettings">保存转存设置</el-button>
+        </el-form-item>
+    </el-form>
+
+    <div slot="footer" class="dialog-footer">
+        <el-button @click="dialogNovelConfig = false">关 闭</el-button>
+    </div>
+</el-dialog>

@@ -6,6 +6,8 @@ use think\App;
 use think\facade\Db;
 use app\api\QfShop;
 use app\service\SyncService;
+use app\service\SubscribeService;
+use app\service\PanBotService;
 
 /**
  * 资源同步 API（源站端 Provider）
@@ -206,6 +208,51 @@ class Sync extends QfShop
         }
 
         jok('同步完毕', ['hour' => $currentHour, 'results' => $results]);
+    }
+
+    /**
+     * 资源订阅定时拉取触发接口
+     *
+     * 供宝塔面板等定时任务通过"访问URL"方式调用，与 autoSync 共用同一 sync_key 鉴权。
+     * 每 5 分钟访问一次即可（订阅内部按 interval_minutes 判断是否到期，未到期自动跳过）。
+     * 可选参数：subscribe_id=N 只拉取指定订阅（忽略到期判断）
+     *
+     * 调用示例：
+     *   GET https://www.site1.com/api/sync/autoPull?api_key=你的sync_key
+     *   GET https://www.site1.com/api/sync/autoPull?api_key=你的sync_key&subscribe_id=1
+     */
+    public function autoPull()
+    {
+        $this->checkAuth();
+
+        $subscribeId = intval(input('subscribe_id', 0));
+        $result = SubscribeService::run($subscribeId);
+        if ($result['code'] != 1) {
+            jerr($result['message']);
+        }
+        jok($result['message'], $result['data']);
+    }
+
+    /**
+     * PanBot 自动同步触发器（HTTP 入口）
+     * 供宝塔面板等定时任务通过"访问URL"方式调用
+     * 每 5 分钟访问一次即可（配置内 interval_minutes 决定实际间隔；未到期自动跳过）
+     * 可选参数：panbot_id=N 只检查指定 PanBot 配置（忽略到期判断）
+     *
+     * 调用示例：
+     *   GET https://www.site1.com/api/sync/panbotAuto?api_key=你的sync_key
+     *   GET https://www.site1.com/api/sync/panbotAuto?api_key=你的sync_key&panbot_id=1
+     */
+    public function panbotAuto()
+    {
+        $this->checkAuth();
+
+        $panbotId = intval(input('panbot_id', 0));
+        $result = PanBotService::syncAuto($panbotId);
+        if ($result['code'] != 1) {
+            jerr($result['message']);
+        }
+        jok($result['message'], $result['data']);
     }
 
     /**

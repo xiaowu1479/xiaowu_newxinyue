@@ -125,7 +125,7 @@ class Source extends QfShop
         if (!empty(input('source_category_id'))) {
             $map[] = ['source_category_id', '=', input('source_category_id')];
         }
-        if (input('is_type') !== '' && input('is_type') !== null) {
+        if (!empty(input('is_type')) && input('is_type') !== '') {
             $map[] = ['is_type', '=', input('is_type')];
         }
         if (!empty(input('account_name'))) {
@@ -133,9 +133,6 @@ class Source extends QfShop
         }
         if (input('is_time') !== '' && input('is_time') !== null) {
             $map[] = ['is_time', '=', input('is_time')];
-        } else {
-            // 默认查询永久资源(0)和外部资源(2)，排除临时资源(1)
-            $map[] = ['is_time', 'in', [0, 2]];
         }
         if (input('is_top') !== '' && input('is_top') !== null) {
             $map[] = ['is_top', '=', input('is_top')];
@@ -288,91 +285,6 @@ class Source extends QfShop
 
 
     /**
-     * 解析Excel文件，返回识别到的记录列表（不入库）
-     */
-    public function parseExcel()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-        try {
-            $file = request()->file('file');
-            if (!$file) {
-                return jerr('请选择文件');
-            }
-
-            try {
-                validate(['file' => 'filesize:10485760|fileExt:xlsx,xls'])
-                    ->check(['file' => $file]);
-            } catch (\Exception $e) {
-                return jerr('文件验证失败：' . $e->getMessage());
-            }
-
-            $saveName = Filesystem::putFile('excel', $file);
-            if (!$saveName) {
-                return jerr('文件保存失败，请检查 uploads 目录权限');
-            }
-
-            ini_set("memory_limit", -1);
-            set_time_limit(0);
-
-            $file_name = Filesystem::path($saveName);
-            if (!file_exists($file_name)) {
-                return jerr('文件不存在');
-            }
-
-            $extension = pathinfo($file_name, PATHINFO_EXTENSION);
-            if ($extension == 'xlsx') {
-                $PHPReader = new \PHPExcel_Reader_Excel2007();
-            } elseif ($extension == 'xls') {
-                $PHPReader = new \PHPExcel_Reader_Excel5();
-            } else {
-                Filesystem::delete($saveName);
-                return jerr('不支持的文件类型');
-            }
-
-            $objExcel = $PHPReader->load($file_name);
-            $excel_array = $objExcel->getSheet(0)->toArray();
-            Filesystem::delete($saveName);
-
-            array_shift($excel_array);
-            array_shift($excel_array);
-
-            $panTypes = config('pan_types');
-            $panTypeMap = [];
-            foreach ($panTypes as $type) {
-                $panTypeMap[$type['id']] = $type['name'];
-            }
-
-            $list = [];
-            foreach ($excel_array as $v) {
-                $title = isset($v[0]) ? trim($v[0]) : '';
-                $url = isset($v[1]) ? trim($v[1]) : '';
-                if (empty($url)) {
-                    continue;
-                }
-                $typeId = determineIsType($url);
-                $list[] = [
-                    'title' => $title,
-                    'url' => $url,
-                    'code' => '',
-                    'type_id' => $typeId,
-                    'type_name' => $panTypeMap[$typeId] ?? '未知',
-                    'category_name' => isset($v[2]) ? trim($v[2]) : '',
-                    'account_name' => isset($v[3]) ? trim($v[3]) : '',
-                    'description' => isset($v[4]) ? trim($v[4]) : '',
-                    'vod_content' => isset($v[5]) ? trim($v[5]) : '',
-                ];
-            }
-
-            return jok('解析成功', $list);
-        } catch (\Exception $error) {
-            return jerr('解析失败，请检查文件格式');
-        }
-    }
-
-    /**
      * Excel导入
      *
      * @return void
@@ -384,96 +296,74 @@ class Source extends QfShop
             return $error;
         }
         try {
-            // 支持直接传入已解析的记录列表（跳过被用户删除的记录）
-            $parsedData = input("parsed_data");
-            $excel_array = null;
+            $file = request()->file('file');
+            if (!$file) {
+                return jerr('请选择文件');
+            }
+            
+            $fileInfo = [
+                'originalName' => $file->getOriginalName(),
+                'extension' => $file->extension(),
+                'size' => $file->getSize(),
+            ];
+            
+            \think\facade\Log::info('上传文件信息：' . json_encode($fileInfo, JSON_UNESCAPED_UNICODE));
+            
+            try {
+                validate(['file' => 'filesize:10485760|fileExt:xlsx,xls'])
+                    ->check(['file' => $file]);
+            } catch (\Exception $e) {
+                \think\facade\Log::error('文件验证失败：' . $e->getMessage());
+                return jerr('文件验证失败：' . $e->getMessage());
+            }
+            
+            $saveName = Filesystem::putFile('excel', $file);
+            
+            if (!$saveName) {
+                \think\facade\Log::error('文件保存失败：uploads 目录可能不存在或无写入权限');
+                return jerr('文件保存失败，请检查 uploads 目录权限');
+            }
+            
+            \think\facade\Log::info('文件保存成功：' . $saveName);
 
-            if (!empty($parsedData)) {
-                $decoded = json_decode($parsedData, true);
-                if (!is_array($decoded)) {
-                    return jerr('解析数据格式有误');
-                }
-                $excel_array = [];
-                foreach ($decoded as $item) {
-                    $excel_array[] = [
-                        $item['title'] ?? '',
-                        $item['url'] ?? '',
-                        $item['category_name'] ?? '',
-                        $item['account_name'] ?? '',
-                        $item['description'] ?? '',
-                        $item['vod_content'] ?? '',
-                    ];
-                }
+            ini_set("memory_limit", -1);
+            set_time_limit(0);
+
+            $file_name = Filesystem::path($saveName);
+            
+            \think\facade\Log::info('完整文件路径：' . $file_name);
+            
+            if (!file_exists($file_name)) {
+                \think\facade\Log::error('文件不存在：' . $file_name);
+                \think\facade\Log::error('尝试查找的路径：' . Filesystem::path(''));
+                return jerr('文件不存在');
             }
 
-            if ($excel_array === null) {
-                $file = request()->file('file');
-                if (!$file) {
-                    return jerr('请选择文件');
-                }
-
-                $fileInfo = [
-                    'originalName' => $file->getOriginalName(),
-                    'extension' => $file->extension(),
-                    'size' => $file->getSize(),
-                ];
-
-                \think\facade\Log::info('上传文件信息：' . json_encode($fileInfo, JSON_UNESCAPED_UNICODE));
-
-                try {
-                    validate(['file' => 'filesize:10485760|fileExt:xlsx,xls'])
-                        ->check(['file' => $file]);
-                } catch (\Exception $e) {
-                    \think\facade\Log::error('文件验证失败：' . $e->getMessage());
-                    return jerr('文件验证失败：' . $e->getMessage());
-                }
-
-                $saveName = Filesystem::putFile('excel', $file);
-
-                if (!$saveName) {
-                    \think\facade\Log::error('文件保存失败：uploads 目录可能不存在或无写入权限');
-                    return jerr('文件保存失败，请检查 uploads 目录权限');
-                }
-
-                \think\facade\Log::info('文件保存成功：' . $saveName);
-
-                ini_set("memory_limit", -1);
-                set_time_limit(0);
-
-                $file_name = Filesystem::path($saveName);
-
-                \think\facade\Log::info('完整文件路径：' . $file_name);
-
-                if (!file_exists($file_name)) {
-                    \think\facade\Log::error('文件不存在：' . $file_name);
-                    \think\facade\Log::error('尝试查找的路径：' . Filesystem::path(''));
-                    return jerr('文件不存在');
-                }
-
-                $extension = pathinfo($file_name, PATHINFO_EXTENSION);
-                if ($extension == 'csv') {
-                    return jerr('转成xlsx格式吧');
-                } elseif ($extension == 'xlsx') {
-                    $PHPReader = new \PHPExcel_Reader_Excel2007();
-                } elseif ($extension == 'xls') {
-                    $PHPReader = new \PHPExcel_Reader_Excel5();
-                } else {
-                    return jerr('不支持的文件类型');
-                }
-
-                $objExcel = $PHPReader->load($file_name);
-                $excel_array = $objExcel->getSheet(0)->toArray();
-
-                \think\facade\Log::info('Excel 数据行数：' . count($excel_array));
-
-                array_shift($excel_array);
-                array_shift($excel_array);
-
-                \think\facade\Log::info('处理后数据行数：' . count($excel_array));
-
-                Filesystem::delete($saveName);
+            $extension = pathinfo($file_name, PATHINFO_EXTENSION);
+            if ($extension == 'csv') {
+                return jerr('转成xlsx格式吧');
+                $PHPReader = new \PHPExcel_Reader_CSV();
+                $encoding = $this->detectFileEncoding($file_name);
+                $PHPReader->setInputEncoding($encoding);
+                $PHPReader->setDelimiter(',');
+            } elseif ($extension == 'xlsx') {
+                $PHPReader = new \PHPExcel_Reader_Excel2007();
+            } elseif ($extension == 'xls') {
+                $PHPReader = new \PHPExcel_Reader_Excel5();
+            } else {
+                return jerr('不支持的文件类型');
             }
 
+            $objExcel = $PHPReader->load($file_name);
+            $excel_array = $objExcel->getSheet(0)->toArray();
+            
+            \think\facade\Log::info('Excel 数据行数：' . count($excel_array));
+            
+            array_shift($excel_array);
+            array_shift($excel_array);
+            
+            \think\facade\Log::info('处理后数据行数：' . count($excel_array));
+            
             $data = [];
             $i = 0;
             $existing_data = [];
@@ -485,6 +375,8 @@ class Source extends QfShop
             foreach ($existing_records as $record) {
                 $existing_data[$record['title'] . '_' . $record['is_type']] = true;
             }
+
+            Filesystem::delete($saveName);
 
             // 获取前端传来的默认分类和资源类型
             $default_category_id = input('source_category_id', 0);
@@ -678,42 +570,6 @@ class Source extends QfShop
     }
 
     /**
-     * 解析输入文本，返回识别到的记录列表（不入库）
-     */
-    public function parseImport()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-        if (empty(input("urls"))) {
-            return jerr('请输入资源内容');
-        }
-
-        $allData = parsePanLinks(input("urls"));
-
-        $panTypes = config('pan_types');
-        $panTypeMap = [];
-        foreach ($panTypes as $type) {
-            $panTypeMap[$type['id']] = $type['name'];
-        }
-
-        $list = [];
-        foreach ($allData as $item) {
-            $typeId = determineIsType($item['url']);
-            $list[] = [
-                'title' => $item['title'],
-                'url' => $item['url'],
-                'code' => $item['code'] ?? '',
-                'type_id' => $typeId,
-                'type_name' => $panTypeMap[$typeId] ?? '未知',
-            ];
-        }
-
-        return jok('解析成功', $list);
-    }
-
-    /**
      * 一键转存并分享夸克资源
      *
      * @return void
@@ -724,26 +580,14 @@ class Source extends QfShop
         if ($error) {
             return $error;
         }
-        if (empty(input("type"))) {
+        if (empty(input("type")) || empty(input("urls"))) {
             return jerr('参数不能为空');
         }
 
         $source_category_id = input('source_category_id') ?? 0;
         $is_time = intval(input('is_time', 0));
 
-        // 支持直接传入已解析的记录列表（跳过被用户删除的记录）
-        $parsedData = input("parsed_data");
-        if (!empty($parsedData)) {
-            $allData = json_decode($parsedData, true);
-            if (!is_array($allData)) {
-                return jerr('解析数据格式有误');
-            }
-        } else {
-            if (empty(input("urls"))) {
-                return jerr('参数不能为空');
-            }
-            $allData = parsePanLinks(input("urls"));
-        }
+        $allData = parsePanLinks(input("urls"));
 
         $quarkPlugin = new QuarkPlugin();
         if (input("type") == 2) {
@@ -755,44 +599,6 @@ class Source extends QfShop
         }
 
         return jok('导入完成', $res);
-    }
-
-    /**
-     * 全部转存 
-     * @return void
-     */
-    public function transferAll()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-        if (empty(input('source_category_id'))) {
-            return jerr('参数异常');
-        }
-        $quarkPlugin = new QuarkPlugin();
-        $quarkPlugin->transferAll(input('source_category_id'));
-        return jok('已提交任务，稍后查看结果');
-    }
-
-    /**
-     * 获取夸克网盘文件夹
-     *
-     * @return void
-     */
-    public function getFiles()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-        $quarkPlugin = new QuarkPlugin();
-        $result = $quarkPlugin->getFiles(input('type') ?? 0, input('pdir_fid') ?? 0);
-
-        if ($result['code'] != 200) {
-            return jerr($result['message']);
-        }
-        return jok('获取成功', $result['data']);
     }
 
     /**
@@ -825,530 +631,6 @@ class Source extends QfShop
         } catch (\Exception $e) {
             return jerr('批量修改分类失败');
         }
-    }
-
-    public function guangyaQrcode()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        try {
-            $urlData = [
-                'scope' => 'user',
-                'client_id' => 'aMe-8VSlkrbQXpUR',
-            ];
-
-            $headers = [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            ];
-
-            $res = curlHelper(
-                'https://account.guangyapan.com/v1/auth/device/code',
-                'POST',
-                json_encode($urlData),
-                $headers
-            );
-
-            if (!empty($res['error'])) {
-                return jerr('请求光鸭服务器失败: ' . $res['error']);
-            }
-
-            $data = json_decode($res['body'] ?? '', true);
-            if (empty($data) || empty($data['device_code'])) {
-                return jerr('获取光鸭二维码失败: ' . ($res['body'] ?? 'empty response'));
-            }
-
-            $verifyUrl = $data['verification_uri_complete'] ?? ($data['verification_url'] ?? '');
-
-            require_once root_path('extend') . 'phpqrcode' . DIRECTORY_SEPARATOR . 'phpqrcode.php';
-            ob_start();
-            \QRcode::png($verifyUrl, false, QR_ECLEVEL_M, 6, 2);
-            $imageData = ob_get_clean();
-            $base64 = 'data:image/png;base64,' . base64_encode($imageData);
-
-            cache('guangya_device_code', $data['device_code'], $data['expires_in'] ?? 600);
-
-            return jok('获取成功', [
-                'code_url' => $base64,
-                'raw_url' => $verifyUrl,
-                'expires_in' => $data['expires_in'] ?? 600,
-                'interval' => $data['interval'] ?? 5,
-            ]);
-        } catch (\Exception $e) {
-            return jerr('获取二维码异常: ' . $e->getMessage());
-        }
-    }
-
-    public function guangyaQrcodePoll()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        try {
-            $deviceCode = cache('guangya_device_code');
-            if (empty($deviceCode)) {
-                return jerr('二维码已过期，请重新获取');
-            }
-
-            $urlData = [
-                'grant_type' => 'urn:ietf:params:oauth:grant-type:device_code',
-                'device_code' => $deviceCode,
-                'client_id' => 'aMe-8VSlkrbQXpUR',
-            ];
-
-            $headers = [
-                'Content-Type: application/json',
-                'Accept: application/json',
-                'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            ];
-
-            $res = curlHelper(
-                'https://account.guangyapan.com/v1/auth/token',
-                'POST',
-                json_encode($urlData),
-                $headers
-            );
-
-            if (!empty($res['error'])) {
-                return jerr('请求光鸭服务器失败: ' . $res['error']);
-            }
-
-            $httpCode = 0;
-            if (!empty($res['detail']) && !empty($res['detail']['http_code'])) {
-                $httpCode = $res['detail']['http_code'];
-            }
-
-            $data = json_decode($res['body'] ?? '', true);
-
-            if ($httpCode == 200 && !empty($data['access_token'])) {
-                $authFile = app()->getConfigPath() . 'guangya_auth.json';
-                $existingData = [];
-                if (file_exists($authFile)) {
-                    $existingData = json_decode(file_get_contents($authFile), true) ?: [];
-                }
-
-                $cookieJson = json_encode(array_merge($existingData, [
-                    'access_token' => $data['access_token'],
-                    'refresh_token' => $data['refresh_token'] ?? '',
-                    'expires_in' => $data['expires_in'] ?? 3600,
-                    'token_type' => $data['token_type'] ?? 'Bearer',
-                    'scope' => $data['scope'] ?? 'user',
-                ]));
-
-                file_put_contents($authFile, $cookieJson);
-
-                cache('guangya_device_code', null);
-
-                return jok('登录成功', [
-                    'status' => 'success',
-                    'cookie' => $cookieJson,
-                ]);
-            }
-
-            if (!empty($data['error'])) {
-                $errorType = $data['error'];
-                if ($errorType === 'authorization_pending') {
-                    return jok('等待扫码', ['status' => 'waiting']);
-                }
-                if ($errorType === 'slow_down') {
-                    return jok('请稍后重试', ['status' => 'waiting']);
-                }
-                if ($errorType === 'expired_token') {
-                    cache('guangya_device_code', null);
-                    return jerr('二维码已过期，请重新获取');
-                }
-                if ($errorType === 'access_denied') {
-                    cache('guangya_device_code', null);
-                    return jerr('用户拒绝授权');
-                }
-            }
-
-            return jok('等待扫码', ['status' => 'waiting']);
-        } catch (\Exception $e) {
-            return jerr('轮询异常: ' . $e->getMessage());
-        }
-    }
-
-    public function guangyaGetAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        $authFile = app()->getConfigPath() . 'guangya_auth.json';
-        $cookieJson = '';
-        $hasAuth = false;
-        if (file_exists($authFile)) {
-            $cookieJson = file_get_contents($authFile);
-            $decoded = json_decode($cookieJson, true);
-            $hasAuth = !empty($decoded) && !empty($decoded['access_token']);
-        }
-
-        return jok('获取成功', [
-            'cookie' => $cookieJson,
-            'has_auth' => $hasAuth,
-        ]);
-    }
-
-    public function guangyaSaveAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        $cookieJson = input('cookie', '');
-        if (empty($cookieJson)) {
-            return jerr('凭证不能为空');
-        }
-
-        $decoded = json_decode($cookieJson, true);
-        if (empty($decoded) || empty($decoded['access_token'])) {
-            return jerr('凭证格式无效，需要包含 access_token');
-        }
-
-        $authFile = app()->getConfigPath() . 'guangya_auth.json';
-        file_put_contents($authFile, $cookieJson);
-
-        return jok('保存成功');
-    }
-
-    /**
-     * 验证光鸭凭证是否有效
-     */
-    public function guangyaCheckAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        try {
-            $transfer = new \netdisk\Transfer();
-            // type=10 是光鸭网盘，parent_id='' 表示根目录
-            $result = $transfer->getFiles(10, '');
-            if ($result['code'] != 200) {
-                return jerr('凭证无效: ' . ($result['message'] ?? '文件列表获取失败'));
-            }
-            return jok('凭证有效，文件列表获取成功');
-        } catch (\Exception $e) {
-            return jerr('验证异常: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * 清空光鸭网盘凭证（退出登录）
-     * 清除本地凭证文件及扫码会话缓存
-     */
-    public function guangyaClearAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        $cleared = [];
-
-        // 1️⃣ 删除主凭证文件 config/guangya_auth.json
-        $authFile = app()->getConfigPath() . 'guangya_auth.json';
-        if (file_exists($authFile)) {
-            unlink($authFile);
-            $cleared[] = 'guangya_auth.json';
-        }
-
-        // 2️⃣ 清除扫码会话缓存
-        cache('guangya_device_code', null);
-        $cleared[] = 'guangya_device_code(cache)';
-
-        return jok('凭证已清空', ['cleared' => $cleared]);
-    }
-
-    // ─────────────────────────────────────────────
-    // 迅雷云盘 - 扫码登录（PanBot OAuth 代理流）
-    // ─────────────────────────────────────────────
-
-    private $xunleiClientId = 'ad4urtDU3UbYHeg8';
-    private $panbotBaseUrl = 'https://api.panbot.cn';
-    private $panbotBackdoorKey = 'test-backdoor-2026';
-
-    public function xunleiQrcode()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        try {
-            // 调 PanBot 发起授权
-            $headers = [
-                'X-Backdoor-Key: ' . $this->panbotBackdoorKey,
-                'Accept: application/json',
-            ];
-
-            $res = curlHelper(
-                $this->panbotBaseUrl . '/api/v1/xunlei/oauth/start',
-                'GET',
-                null,
-                $headers
-            );
-
-            if (!empty($res['error'])) {
-                return jerr('请求PanBot服务失败: ' . $res['error']);
-            }
-
-            $body = json_decode($res['body'] ?? '', true);
-            if (empty($body) || ($body['code'] ?? 0) !== 200 || empty($body['data']['auth_url'])) {
-                $msg = $body['message'] ?? '获取授权地址失败';
-                return jerr($msg);
-            }
-
-            $sessionId = $body['data']['session_id'] ?? '';
-            $authUrl = $body['data']['auth_url'] ?? '';
-            $deviceId = $body['data']['device_id'] ?? '';
-
-            if (empty($authUrl)) {
-                return jerr('授权地址为空');
-            }
-
-            // 生成二维码
-            $qrcodeFile = root_path('extend') . 'phpqrcode' . DIRECTORY_SEPARATOR . 'phpqrcode.php';
-            $base64 = '';
-            if (file_exists($qrcodeFile)) {
-                require_once $qrcodeFile;
-                ob_start();
-                \QRcode::png($authUrl, false, QR_ECLEVEL_M, 6, 2);
-                $imageData = ob_get_clean();
-                $base64 = 'data:image/png;base64,' . base64_encode($imageData);
-            }
-
-            // 缓存 session_id 供轮询使用
-            cache('xunlei_session_id', $sessionId, 300);
-            cache('xunlei_device_id', $deviceId, 86400);
-
-            return jok('获取成功', [
-                'code_url' => $base64,
-                'raw_url' => $authUrl,
-                'expires_in' => 300,
-                'session_id' => $sessionId,
-            ]);
-        } catch (\Exception $e) {
-            return jerr('获取二维码异常: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * 轮询授权结果（2 秒间隔）
-     */
-    public function xunleiQrcodePoll()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        $sessionId = cache('xunlei_session_id');
-        if (empty($sessionId)) {
-            return jerr('授权会话不存在，请重新扫码');
-        }
-
-        try {
-            $headers = [
-                'X-Backdoor-Key: ' . $this->panbotBackdoorKey,
-                'Accept: application/json',
-            ];
-
-            $res = curlHelper(
-                $this->panbotBaseUrl . '/api/v1/xunlei/oauth/poll?session_id=' . urlencode($sessionId),
-                'GET',
-                null,
-                $headers
-            );
-
-            if (!empty($res['error'])) {
-                return jerr('轮询请求失败: ' . $res['error']);
-            }
-
-            $body = json_decode($res['body'] ?? '', true);
-            if (empty($body)) {
-                return jok('等待响应', ['status' => 'waiting']);
-            }
-
-            $status = $body['data']['status'] ?? 'pending';
-
-            if ($status === 'done') {
-                // 授权成功，保存凭证
-                $data = $body['data'];
-                $authFile = app()->getConfigPath() . 'xunlei_auth.json';
-                $cookieJson = json_encode([
-                    'access_token'  => $data['access_token'] ?? '',
-                    'refresh_token' => $data['refresh_token'] ?? '',
-                    'expires_in'    => $data['expires_in'] ?? 7776000,
-                    'device_id'     => $data['device_id'] ?? '',
-                    'token_type'    => 'Bearer',
-                    'scope'         => 'profile',
-                    'sub'           => $data['user_info']['platform_user_id'] ?? '',
-                    'user_id'       => $data['user_info']['platform_user_id'] ?? '',
-                    'nickname'      => $data['user_info']['nickname'] ?? '',
-                    'avatar'        => $data['user_info']['avatar'] ?? '',
-                ]);
-                file_put_contents($authFile, $cookieJson);
-
-                // 保存 device_id 用于后续 API
-                if (!empty($data['device_id'])) {
-                    $deviceFile = app()->getConfigPath() . 'xunlei_device.json';
-                    file_put_contents($deviceFile, json_encode([
-                        'device_id' => $data['device_id'],
-                    ]));
-                }
-
-                cache('xunlei_session_id', null);
-
-                return jok('登录成功', [
-                    'status' => 'success',
-                    'cookie' => $cookieJson,
-                ]);
-            }
-
-            if ($status === 'expired') {
-                cache('xunlei_session_id', null);
-                $msg = $body['data']['message'] ?? '授权已过期，请重新扫码';
-                return jerr($msg);
-            }
-
-            // status === 'pending'
-            return jok('等待扫码', ['status' => 'waiting']);
-        } catch (\Exception $e) {
-            return jerr('轮询异常: ' . $e->getMessage());
-        }
-    }
-
-    public function xunleiGetAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        $authFile = app()->getConfigPath() . 'xunlei_auth.json';
-        $cookieJson = '';
-        $hasAuth = false;
-        if (file_exists($authFile)) {
-            $cookieJson = file_get_contents($authFile);
-            $decoded = json_decode($cookieJson, true);
-            $hasAuth = !empty($decoded) && !empty($decoded['access_token']);
-        }
-
-        return jok('获取成功', [
-            'cookie' => $cookieJson,
-            'has_auth' => $hasAuth,
-        ]);
-    }
-
-    /**
-     * 验证迅雷凭证是否有效
-     */
-    public function xunleiCheckAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        try {
-            $transfer = new \netdisk\Transfer();
-            // type=4 是迅雷网盘，parent_id='' 表示根目录
-            $result = $transfer->getFiles(4, '');
-            if ($result['code'] != 200) {
-                return jerr('凭证无效: ' . ($result['message'] ?? '文件列表获取失败'));
-            }
-            return jok('凭证有效，文件列表获取成功');
-        } catch (\Exception $e) {
-            return jerr('验证异常: ' . $e->getMessage());
-        }
-    }
-
-    public function xunleiSaveAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        $cookieJson = input('cookie', '');
-        if (empty($cookieJson)) {
-            return jerr('凭证不能为空');
-        }
-
-        $decoded = json_decode($cookieJson, true);
-        if (empty($decoded) || empty($decoded['access_token'])) {
-            return jerr('凭证格式无效，需要包含 access_token');
-        }
-
-        $authFile = app()->getConfigPath() . 'xunlei_auth.json';
-        file_put_contents($authFile, $cookieJson);
-
-        return jok('保存成功');
-    }
-
-    /**
-     * 清空迅雷云盘凭证（退出登录）
-     * 清除所有本地凭证文件、token缓存及数据库回退字段
-     */
-    public function xunleiClearAuth()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-
-        $cleared = [];
-
-        // 1️⃣ 删除主凭证文件 config/xunlei_auth.json
-        $authFile = app()->getConfigPath() . 'xunlei_auth.json';
-        if (file_exists($authFile)) {
-            unlink($authFile);
-            $cleared[] = 'xunlei_auth.json';
-        }
-
-        // 2️⃣ 删除设备 ID 文件 config/xunlei_device.json
-        $deviceFile = app()->getConfigPath() . 'xunlei_device.json';
-        if (file_exists($deviceFile)) {
-            unlink($deviceFile);
-            $cleared[] = 'xunlei_device.json';
-        }
-
-        // 3️⃣ 删除 access_token 缓存 extend/netdisk/pan/xunlei_token.json
-        $tokenFile = root_path('extend') . 'netdisk' . DIRECTORY_SEPARATOR . 'pan' . DIRECTORY_SEPARATOR . 'xunlei_token.json';
-        if (file_exists($tokenFile)) {
-            unlink($tokenFile);
-            $cleared[] = 'xunlei_token.json';
-        }
-
-        // 4️⃣ 删除 captcha 缓存 extend/netdisk/pan/xunlei_captcha.json
-        $captchaFile = root_path('extend') . 'netdisk' . DIRECTORY_SEPARATOR . 'pan' . DIRECTORY_SEPARATOR . 'xunlei_captcha.json';
-        if (file_exists($captchaFile)) {
-            unlink($captchaFile);
-            $cleared[] = 'xunlei_captcha.json';
-        }
-
-        // 5️⃣ 清空数据库回退字段 xunlei_cookie
-        \think\facade\Db::name('conf')->where('conf_key', 'xunlei_cookie')->update([
-            'conf_value' => ''
-        ]);
-        $cleared[] = 'xunlei_cookie';
-
-        // 6️⃣ 清除扫码会话缓存
-        cache('xunlei_session_id', null);
-        cache('xunlei_device_id', null);
-
-        return jok('凭证已清空', ['cleared' => $cleared]);
     }
 
     // ─────────────────────────────────────────────
@@ -1642,8 +924,7 @@ class Source extends QfShop
             }
         } else {
             // 豆瓣影视/图书/音乐搜索
-            // 注意：豆瓣已关闭影视/音乐的 subject_suggest 接口（返回空数组 []），
-            // 仅图书 subject_suggest 仍可用。subject_suggest 返回空时回退到移动端搜索。
+            $typeMap = ['movie' => 'movie', 'book' => 'book', 'music' => 'music'];
             $typeLabel = ['movie' => '', 'book' => '图书', 'music' => '音乐'];
             $apiBase = [
                 'movie' => 'https://movie.douban.com/j/subject_suggest?q=',
@@ -1652,18 +933,11 @@ class Source extends QfShop
             ];
             $url = ($apiBase[$searchType] ?? $apiBase['movie']) . urlencode($keyword);
             $response = curlHelper($url, 'GET', null, $headerApi, '', '', 15);
-            $items = [];
-            if (!isset($response['error']) && !empty($response['body'])) {
-                $decoded = json_decode($response['body'], true);
-                if (is_array($decoded)) {
-                    $items = $decoded;
-                }
+            if (isset($response['error'])) {
+                return jerr('搜索请求失败：' . $response['error']);
             }
-            // subject_suggest 返回空（影视/音乐接口已失效），回退到移动端搜索
-            if (empty($items)) {
-                $items = $this->searchDoubanMobile($keyword, $searchType, $headerMobile);
-            }
-            if (empty($items)) {
+            $items = json_decode($response['body'] ?? '', true);
+            if (!is_array($items) || empty($items)) {
                 return jerr('未找到封面图，请手动上传');
             }
             $doubanTypeMap = ['movie' => '电影', 'tv' => '剧集', 'book' => '图书', 'music' => '音乐'];
@@ -1676,10 +950,6 @@ class Source extends QfShop
                 $itemType = $item['type'] ?? '';
                 $episode = $item['episode'] ?? '';
                 $subTitle = $item['sub_title'] ?? '';
-                // 豆瓣有时返回的 sub_title 与 title 完全相同（如"盘龙"），去重避免显示为"盘龙 盘龙"
-                if ($subTitle !== '' && $subTitle === $title) {
-                    $subTitle = '';
-                }
                 $author = $item['author_name'] ?? '';
                 $itemUrl = $item['url'] ?? '';
                 if (!$img) continue;
@@ -1749,77 +1019,6 @@ class Source extends QfShop
             return jerr('未找到封面图，请手动上传');
         }
         return jok('success', $results);
-    }
-
-    /**
-     * 豆瓣移动端搜索（subject_suggest 接口失效时的回退方案）
-     * 豆瓣已关闭影视/音乐的 subject_suggest 接口，改用 m.douban.com/search 移动端页面解析。
-     * 返回与 subject_suggest 兼容的数组结构（含 id/title/img/pic/type/url 等字段）。
-     * @param string $keyword 搜索关键词
-     * @param string $searchType movie|book|music
-     * @param array $headerMobile 移动端请求头
-     * @return array
-     */
-    private function searchDoubanMobile($keyword, $searchType, $headerMobile)
-    {
-        // 移动端搜索 type 参数：movie/book/music 均可直接使用，返回综合搜索结果
-        // 通过 href 前缀（/movie/subject/、/book/subject/、/music/subject/）过滤出对应类型
-        $typeParamMap = ['movie' => 'movie', 'book' => 'book', 'music' => 'music'];
-        $typeParam = $typeParamMap[$searchType] ?? 'movie';
-        $hrefPrefix = $typeParam; // href 前缀与 type 参数一致
-
-        $url = 'https://m.douban.com/search/?query=' . urlencode($keyword) . '&type=' . $typeParam;
-        $res = curlHelper($url, 'GET', null, $headerMobile, '', '', 15);
-        if (isset($res['error']) || empty($res['body'])) {
-            return [];
-        }
-        $html = $res['body'];
-
-        $items = [];
-        // 匹配每个搜索结果条目：
-        // <a href="/movie/subject/1652587/"><img src="..."/><div class="subject-info"><span class="subject-title">标题</span>...</div></a>
-        $pattern = '/<a\s+href="\/(' . preg_quote($hrefPrefix, '/') . ')\/subject\/(\d+)\/"[^>]*>\s*'
-            . '<img[^>]*src="([^"]*)"[^>]*>\s*'
-            . '<div class="subject-info">\s*<span class="subject-title">([^<]*)<\/span>(.*?)<\/div>\s*<\/a>/is';
-        if (preg_match_all($pattern, $html, $matches, PREG_SET_ORDER)) {
-            $seen = [];
-            foreach ($matches as $m) {
-                $itemType = $m[1];
-                $id = $m[2];
-                $img = $m[3];
-                $title = trim(html_entity_decode($m[4], ENT_QUOTES, 'UTF-8'));
-                $infoHtml = $m[5];
-
-                if (isset($seen[$id]) || empty($img) || empty($title)) {
-                    continue;
-                }
-                $seen[$id] = true;
-
-                // 提取评分：rating-stars 的 data-rating 为 0-100，需除以 10 转为 0-10 分制
-                $rate = '';
-                if (preg_match('/data-rating="([\d.]+)"/i', $infoHtml, $rm)) {
-                    $rate = sprintf('%.1f', floatval($rm[1]) / 10);
-                }
-
-                // subject_suggest 的 type 字段约定：movie=movie, book=b, music=music
-                $normalizedType = $itemType === 'book' ? 'b' : $itemType;
-
-                $items[] = [
-                    'id' => $id,
-                    'title' => $title,
-                    'img' => $img,   // 影视用 img 字段
-                    'pic' => $img,   // 图书/音乐用 pic 字段
-                    'type' => $normalizedType,
-                    'year' => '',
-                    'episode' => '',
-                    'sub_title' => '',
-                    'author_name' => '',
-                    'url' => 'https://m.douban.com/' . $itemType . '/subject/' . $id . '/',
-                    'rate' => $rate,
-                ];
-            }
-        }
-        return $items;
     }
 
     /**

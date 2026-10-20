@@ -1,0 +1,111 @@
+<!-- PanBot 第三方开放平台同步（接口见 https://test.openapi.pars.panbot.cn/docs） -->
+<!-- 弹窗极简：填 base_url + api_key + 同步间隔；展示本次同步新增/变更的资源 -->
+<el-dialog title="panbot同步" :visible.sync="dialogPanBot" :modal-append-to-body='false' append-to-body
+    :close-on-click-modal='false' width="720px">
+    <div v-loading="panBotLoading">
+
+        <!-- ============== 配置区 ============== -->
+        <el-form :model="panBotForm" size="small" label-position="top">
+            <el-form-item label="服务地址（base_url）">
+                <el-input v-model="panBotForm.base_url" placeholder="https://test.openapi.pars.panbot.cn" maxlength="255" clearable></el-input>
+            </el-form-item>
+            <el-form-item label="API Key">
+                <el-input v-model="panBotForm.api_key" placeholder="pbak_ 开头" maxlength="255" show-password clearable></el-input>
+            </el-form-item>
+            <el-form-item label="自动同步间隔（分钟）">
+                <el-input-number v-model="panBotForm.interval_minutes" :min="0" :step="5" :max="1440" controls-position="right" style="width:180px;"></el-input-number>
+                <span style="color:#909399;font-size:12px;margin-left:8px;">0=禁用；建议 360（6小时，最小 5）</span>
+            </el-form-item>
+            <el-form-item>
+                <el-button icon="el-icon-connection" size="small" :loading="panBotTesting" @click="testPanBot">测试连接</el-button>
+                <el-button type="primary" icon="el-icon-position" size="small" :loading="panBotSaving" @click="savePanBot">保存并启动</el-button>
+                <el-button icon="el-icon-refresh-left" size="small" :loading="panBotResyncing" @click="panBotFullResync">全量重拉</el-button>
+            </el-form-item>
+            <div style="color:#909399;font-size:12px;line-height:1.6;margin-top:6px;">
+                保存即生效：首次全量<span v-if="panBotForm.interval_minutes > 0">，后续每 {{ panBotForm.interval_minutes }} 分钟自动增量</span><span v-else>，自动同步已禁用</span>。<br>
+                全量重拉：重置勾选分类的同步水位后，重新拉取勾选分类下的全部资源，未勾选分类不会拉取（PanBot 侧数据清空/恢复后使用）。<br>
+                定时任务：在宝塔 cron 每 5 分钟执行 <code>php think panbot:auto</code> 或访问 <code>/api/sync/panbotAuto?api_key=xxx</code>
+            </div>
+        </el-form>
+
+        <el-divider>同步分类</el-divider>
+
+        <div v-loading="panBotCatsLoading">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="color:#64748b;font-size:12px;">
+                    仅同步勾选大类（资源库）下的分类，未勾选的自动跳过（已同步资源保留不受影响）
+                </span>
+                <div>
+                    <el-button size="mini" plain @click="panBotCatToggleAll(true)">全选</el-button>
+                    <el-button size="mini" plain @click="panBotCatToggleAll(false)">全不选</el-button>
+                </div>
+            </div>
+            <el-checkbox-group v-model="panBotCatSelected" @change="onPanBotCatChange" style="line-height:1.8;">
+                <el-checkbox v-for="cat in panBotCategories" :key="cat.library_id"
+                    :label="String(cat.library_id)" style="margin-right:16px;">
+                    {{ cat.library_name || cat.library_id }}（{{ cat.category_total }}）
+                </el-checkbox>
+                <div v-if="panBotCategories.length === 0 && !panBotCatsLoading" style="color:#909399;font-size:12px;padding:8px 0;">
+                    暂无大类数据，请先填写配置并保存同步
+                </div>
+            </el-checkbox-group>
+        </div>
+
+        <el-divider>本次同步更新的资源</el-divider>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="color:#64748b;font-size:12px;">
+                最近一次同步新增或变更的资源（最多 50 条，按更新时间倒序）
+                <span v-if="panBotRecent.total > 0" style="color:#909399;">
+                    · 共 {{ panBotRecent.total }} 条
+                </span>
+            </span>
+            <el-button icon="el-icon-refresh" size="mini" plain @click="getPanBotRecent">刷新</el-button>
+        </div>
+
+        <el-table :data="panBotRecent.list" size="small" stripe height="320" empty-text="本次同步窗口暂无新增资源">
+            <el-table-column type="index" width="50" label="#" align="center"></el-table-column>
+            <el-table-column label="封面" width="64" align="center">
+                <template slot-scope="scope">
+                    <img v-if="scope.row.vod_pic" :src="scope.row.vod_pic" :alt="scope.row.title" loading="lazy"
+                        style="width:40px;height:56px;object-fit:cover;border-radius:4px;background:#f5f7fa;vertical-align:middle;"
+                        @error="$event.target.style.display='none'">
+                    <i v-else class="el-icon-picture-outline" style="font-size:22px;color:#dcdfe6;line-height:56px;"></i>
+                </template>
+            </el-table-column>
+            <el-table-column prop="title" label="资源名称" min-width="160" show-overflow-tooltip></el-table-column>
+            <el-table-column label="分类" width="100" align="center">
+                <template slot-scope="scope">
+                    <span style="color:#67c23a;">{{ findLocalCategoryName(scope.row.source_category_id) || '未分类' }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="网盘" width="60" align="center">
+                <template slot-scope="scope">
+                    <el-tag size="mini" :type="panTypeTagType(scope.row.is_type)">{{ panTypeLabel(scope.row.is_type) }}</el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="时效" width="60" align="center">
+                <template slot-scope="scope">
+                    <el-tag size="mini" :type="scope.row.is_time == 2 ? 'info' : (scope.row.is_time == 1 ? 'warning' : 'success')">
+                        {{ scope.row.is_time == 2 ? '外部' : (scope.row.is_time == 1 ? '临时' : '永久') }}
+                    </el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="提取码" width="80" align="center">
+                <template slot-scope="scope">
+                    <span v-if="scope.row.code" style="font-family:monospace;">{{ scope.row.code }}</span>
+                    <span v-else style="color:#c0c4cc;">—</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="更新时间" width="120" align="center">
+                <template slot-scope="scope">
+                    {{ formatPanBotTime(scope.row.update_time) }}
+                </template>
+            </el-table-column>
+        </el-table>
+    </div>
+
+    <div slot="footer" class="dialog-footer">
+        <el-button @click="dialogPanBot = false">关 闭</el-button>
+    </div>
+</el-dialog>

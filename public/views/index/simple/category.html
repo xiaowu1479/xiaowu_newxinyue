@@ -17,7 +17,7 @@
                         <path d="m21 21-4.35-4.35"></path>
                     </svg>
                 </span>
-                <input type="text" v-model="keyword" placeholder="搜索：片名 / 关键词 / 主演" @keyup.enter="searchBtn">
+                <input type="text" v-model="keyword" placeholder="搜索：片名 / 书名 / 关键词" @keyup.enter="searchBtn">
                 <button class="search-btn" @click="searchBtn">搜索</button>
             </div>
 
@@ -29,16 +29,9 @@
                           class="category-tab" :class="{active: currentCategoryId === cat.source_category_id}"
                           @click="switchCategory(cat.source_category_id)">{{cat.name}}</span>
                 </div>
-            </div>
-
-            <!-- 网盘类型筛选 -->
-            <div class="category-pan-filter">
-                <span class="pan-filter-label">网盘</span>
-                <div class="pan-filter-options">
-                    <span class="category-tab" :class="{active: currentPanType === ''}" @click="switchPanType('')">全部</span>
-                    <span v-for="item in panTypeList" :key="item.id"
-                          class="category-tab" :class="{active: currentPanType === item.id}"
-                          @click="switchPanType(item.id)">{{item.name}}</span>
+                <div class="category-sort-tabs">
+                    <span class="category-tab" :class="{active: currentSort === 'hot'}" @click="switchSort('hot')">按热度</span>
+                    <span class="category-tab" :class="{active: currentSort === 'time'}" @click="switchSort('time')">按时间</span>
                 </div>
             </div>
 
@@ -49,34 +42,10 @@
                         <div class="hot-category-card-head">
                             <span class="hot-category-card-title">{{currentCategoryName}}<em>资源</em></span>
                             <span class="hot-category-card-count" v-if="total > 0">{{total}}条</span>
-                            <div class="category-sort-tabs">
-                                <span class="category-tab" :class="{active: currentSort === 'hot'}" @click="switchSort('hot')">按热度</span>
-                                <span class="category-tab" :class="{active: currentSort === 'time'}" @click="switchSort('time')">按时间</span>
-                            </div>
-                            <div class="category-view-switch">
-                                <span class="category-view-btn" :class="{active: viewMode === 'card'}" title="卡片视图" @click="setViewMode('card')">
-                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect x="3" y="3" width="7" height="7" rx="1.5"></rect>
-                                        <rect x="14" y="3" width="7" height="7" rx="1.5"></rect>
-                                        <rect x="3" y="14" width="7" height="7" rx="1.5"></rect>
-                                        <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
-                                    </svg>
-                                </span>
-                                <span class="category-view-btn" :class="{active: viewMode === 'list'}" title="列表视图" @click="setViewMode('list')">
-                                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <line x1="8" y1="6" x2="21" y2="6"></line>
-                                        <line x1="8" y1="12" x2="21" y2="12"></line>
-                                        <line x1="8" y1="18" x2="21" y2="18"></line>
-                                        <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                                        <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                                        <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                                    </svg>
-                                </span>
-                            </div>
                         </div>
                         <div v-if="loading" class="hot-category-empty">加载中...</div>
                         <el-empty v-else-if="list.length === 0" :image-size="200" description="暂无资源数据"></el-empty>
-                        <div class="hot-category-grid" v-else-if="viewMode === 'card'">
+                        <div class="hot-category-grid" v-else>
                             <div class="hot-category-item" v-for="(item, index) in list" :key="item.id || index" @click="showItem(item)">
                                 <div class="hot-category-cover">
                                     <span class="hot-category-rank" :class="{'top': index < 3}">{{index + 1}}</span>
@@ -87,20 +56,6 @@
                                     </div>
                                 </div>
                                 <div class="hot-category-name">{{item.title}}</div>
-                            </div>
-                        </div>
-                        <!-- 列表视图 -->
-                        <div class="category-list-view" v-else>
-                            <div class="category-list-item" v-for="(item, index) in list" :key="item.id || index" @click="showItem(item)">
-                                <span class="category-list-rank" :class="{'top': index < 3}">{{index + 1}}</span>
-                                <div class="category-list-info">
-                                    <div class="category-list-title">{{item.title}}</div>
-                                    <div v-if="item.description" class="category-list-desc">{{item.description}}</div>
-                                </div>
-                                <div class="category-list-meta">
-                                    <span v-if="item.times" class="category-list-time">更新：{{item.times}}</span>
-                                    <span class="category-list-type">{{panTypeMap[item.is_type] || '资源'}}</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -124,7 +79,8 @@
     <script src="__STATIC__/simple/common/static/js/qrcanvas@3.js"></script>
     <script src="__STATIC__/simple/common/static/js/app-core.js"></script>
     <script src="__STATIC__/simple/common/static/js/app-pages.js"></script>
-    <script src="__STATIC__/simple/common/static/js/search.js?v=20260814"></script>
+    <script src="__STATIC__/simple/common/static/js/search.js?v=202609282"></script>
+    <script src="__STATIC__/simple/common/static/js/novel-downloader.js?v=202609291"></script>
     <script type="text/javascript">
         const { createApp, ref, onMounted } = Vue;
 
@@ -136,7 +92,6 @@
         const __initialTotal = <?php echo $total ?? 0; ?>;
         const __initialPage = <?php echo $page ?? 1; ?>;
         const __initialPageSize = <?php echo $pageSize ?? 20; ?>;
-        const __panTypeList = <?php echo json_encode($panTypeList ?? [], JSON_UNESCAPED_UNICODE); ?>;
 
         const app = createApp({
             setup() {
@@ -151,29 +106,12 @@
                 const pageSize = ref(__initialPageSize);
                 const currentSort = ref('time');
                 const currentResourceType = ref(0);
-                // 网盘类型筛选
-                const panTypeList = ref(__panTypeList);
-                const currentPanType = ref('');
-                // 视图模式：card=卡片 list=列表（本地缓存）
-                let savedViewMode = 'card';
-                try {
-                    savedViewMode = localStorage.getItem('category-view-mode') === 'list' ? 'list' : 'card';
-                } catch (e) {}
-                const viewMode = ref(savedViewMode);
-                const setViewMode = (mode) => {
-                    viewMode.value = mode;
-                    try {
-                        localStorage.setItem('category-view-mode', mode);
-                    } catch (e) {}
-                };
 
                 // 主题
                 const currentTheme = ref('dark');
                 const initTheme = () => {
-                    let defaultTheme = '{$config.simple_default_theme}' || 'dark';
-                    if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
-                    let savedTheme = localStorage.getItem('app-theme') || defaultTheme;
-                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
+                    let savedTheme = localStorage.getItem('app-theme') || 'dark';
+                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = 'dark';
                     currentTheme.value = savedTheme;
                     document.documentElement.setAttribute('data-theme', savedTheme);
                 };
@@ -193,6 +131,9 @@
                     resultFilterPanType, availableResultTabs, setResultFilterPanType,
                     switchPanFromResource
                 } = window.searchModule.createDialogState(keyword, { validateKeywordOnSearch: false, selectPanAndSearchMode: 'toggle' });
+                // navbar 通用绑定：非小说页搜索走原 searchBtn
+                const isNovelPage = false;
+                const navbarSearch = () => { searchBtn(); };
                 const drawer = ref(false);
                 const qcodeVisible = ref(false);
                 const layerVisible = ref(false);
@@ -208,45 +149,9 @@
                     safeJump('thunder://' + btoa('AA' + url + 'ZZ'));
                 };
                 const is_m = ref(0);
-                const pc_type = ref(parseInt('{$config.pc_type}') || 0);
-                // 检测设备类型：手机端始终显示链接，PC 端按后台「PC端访问方式」配置
-                const handleDeviceType = () => {
-                    const isMobile = window.matchMedia('(max-width: 768px)').matches;
-                    is_m.value = isMobile ? 1 : 0;
-                };
+                const pc_type = ref(0);
                 const panTypeMap = ref(<?php echo json_encode($panTypeMap ?? [], JSON_UNESCAPED_UNICODE); ?>);
-                const copyToClipboard = (text) => {
-                    if (!text) {
-                        ElementPlus.ElMessage.warning('暂无链接可复制');
-                        return;
-                    }
-                    const showSuccess = () => ElementPlus.ElMessage.success('复制成功');
-                    const showFail = () => ElementPlus.ElMessage.error('复制失败，请手动复制');
-                    if (navigator.clipboard && window.isSecureContext) {
-                        navigator.clipboard.writeText(text).then(showSuccess).catch(() => {
-                            fallbackCopyText(text, showSuccess, showFail);
-                        });
-                    } else {
-                        fallbackCopyText(text, showSuccess, showFail);
-                    }
-                };
-                const fallbackCopyText = (text, onSuccess, onFail) => {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = text;
-                    textArea.style.position = 'fixed';
-                    textArea.style.left = '-9999px';
-                    textArea.style.top = '0';
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    try {
-                        if (document.execCommand('copy')) onSuccess();
-                        else onFail();
-                    } catch (e) {
-                        onFail();
-                    }
-                    document.body.removeChild(textArea);
-                };
+                const copyToClipboard = (text) => { if (navigator.clipboard) navigator.clipboard.writeText(text); };
                 const defaultCover = ref('data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a2538"/><stop offset="1" stop-color="#0e1620"/></linearGradient></defs><rect fill="url(#bg)" width="200" height="280" rx="8"/><g transform="translate(100,125)" opacity="0.25"><rect x="-28" y="-20" width="56" height="40" rx="4" fill="none" stroke="#8aa5ff" stroke-width="2"/><circle cx="-10" cy="-8" r="5" fill="#8aa5ff"/><path d="M-22,14 L-6,-2 L8,10 L22,-6 L22,14 Z" fill="#8aa5ff"/></g><text x="100" y="185" font-size="13" fill="#5a6a80" text-anchor="middle" font-family="sans-serif">暂无封面</text></svg>'));
                 const onCoverError = (e) => { e.target.src = defaultCover.value; };
 
@@ -257,64 +162,32 @@
                 }
 
                 // 显示资源弹窗
-                const generateQrcodeForItem = (item) => {
-                    Vue.nextTick(() => {
-                        setTimeout(() => {
-                            const qrcodeEl = document.getElementById('qrcode');
-                            if (qrcodeEl && typeof qrcanvas !== 'undefined') {
-                                qrcodeEl.innerHTML = '';
-                                const canvas = qrcanvas.qrcanvas({ data: item.showUrl, size: 120 });
-                                qrcodeEl.appendChild(canvas);
-                            } else {
-                                setTimeout(() => {
-                                    const el2 = document.getElementById('qrcode');
-                                    if (el2 && typeof qrcanvas !== 'undefined') {
-                                        el2.innerHTML = '';
-                                        const canvas2 = qrcanvas.qrcanvas({ data: item.showUrl, size: 120 });
-                                        el2.appendChild(canvas2);
-                                    }
-                                }, 300);
-                            }
-                        }, 300);
-                    });
-                };
-
                 const showItem = (item) => {
-                    var rawUrl = item.url || '';
-                    if (rawUrl.startsWith('http') || rawUrl.startsWith('magnet:')) {
-                        // 永久/临时资源：直接显示（保持不变）
-                        item.showUrl = rawUrl;
-                        if (item.showUrl.startsWith('magnet:')) {
-                            item.thunderUrl = 'thunder://' + btoa('AA' + item.showUrl + 'ZZ');
-                        }
-                        dialogItem.value = item;
-                        dialogUrl.value = true;
-                        if (item.showUrl) {
-                            generateQrcodeForItem(item);
-                        }
-                    } else {
-                        // 外部资源(is_time=2)：加密链接，转存后显示
-                        dialogUrl.value = true;
-                        dialogLoading.value = true;
-                        dialogItem.value = {};
-                        axios.post('/api/other/save_url', {
-                            url: encodeURIComponent(rawUrl),
-                            title: item.title
-                        }).then(res => {
-                            if (res.data.code == 200) {
-                                item.url = res.data.data.url;
-                                item.showUrl = res.data.data.url;
-                            } else {
-                                item.showUrl = '';
-                                item.message = res.data.message;
-                            }
-                            dialogLoading.value = false;
-                            dialogItem.value = item;
-                            if (item.showUrl) {
-                                generateQrcodeForItem(item);
-                            }
-                        }).catch(() => {
-                            dialogLoading.value = false;
+                    item.showUrl = item.url || '';
+                    if (item.showUrl && item.showUrl.startsWith('magnet:')) {
+                        item.thunderUrl = 'thunder://' + btoa('AA' + item.showUrl + 'ZZ');
+                    }
+                    dialogItem.value = item;
+                    dialogUrl.value = true;
+                    if (item.showUrl) {
+                        Vue.nextTick(() => {
+                            setTimeout(() => {
+                                const qrcodeEl = document.getElementById('qrcode');
+                                if (qrcodeEl && typeof qrcanvas !== 'undefined') {
+                                    qrcodeEl.innerHTML = '';
+                                    const canvas = qrcanvas.qrcanvas({ data: item.showUrl, size: 120 });
+                                    qrcodeEl.appendChild(canvas);
+                                } else {
+                                    setTimeout(() => {
+                                        const el2 = document.getElementById('qrcode');
+                                        if (el2 && typeof qrcanvas !== 'undefined') {
+                                            el2.innerHTML = '';
+                                            const canvas2 = qrcanvas.qrcanvas({ data: item.showUrl, size: 120 });
+                                            el2.appendChild(canvas2);
+                                        }
+                                    }, 300);
+                                }
+                            }, 300);
                         });
                     }
                 };
@@ -329,8 +202,7 @@
                                 page: page,
                                 page_size: pageSize.value,
                                 sort: currentSort.value,
-                                is_time: currentResourceType.value,
-                                pan_type: currentPanType.value
+                                is_time: currentResourceType.value
                             }
                         });
                         if (res.data && res.data.code === 200 && res.data.data) {
@@ -371,14 +243,6 @@
                     loadData(currentCategoryId.value, 1);
                 };
 
-                // 切换网盘类型
-                const switchPanType = (type) => {
-                    if (currentPanType.value === type) return;
-                    currentPanType.value = type;
-                    currentPage.value = 1;
-                    loadData(currentCategoryId.value, 1);
-                };
-
                 // 切换页码
                 const changePage = (page) => {
                     currentPage.value = page;
@@ -387,7 +251,6 @@
                 };
 
                 onMounted(() => {
-                    handleDeviceType();
                     initTheme();
                     loadData(currentCategoryId.value, currentPage.value);
                 });
@@ -397,14 +260,10 @@
                     categoryList, currentCategoryId, currentCategoryName,
                     list, loading, total, currentPage, pageSize, currentSort,
                     switchCategory, switchSort, changePage, showItem,
-                    // 网盘类型
-                    panTypeList, currentPanType, switchPanType,
-                    // 视图模式
-                    viewMode, setViewMode,
                     // 主题
                     currentTheme, toggleTheme,
                     // navbar
-                    keyword, searchBtn, drawer, qcodeVisible,
+                    keyword, searchBtn, drawer, qcodeVisible, isNovelPage, navbarSearch,
                     layerVisible, content, saveBtn,
                     // 弹窗
                     dialogUrl, dialogLoading, dialogItem,

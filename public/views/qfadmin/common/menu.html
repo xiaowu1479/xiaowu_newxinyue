@@ -15,7 +15,7 @@
             <el-menu-item
                 onclick="location.href='/{$subItem.node_module}/{$subItem.node_controller}/{$subItem.node_action}';"
                 index="{$item.node_id}-{$subItem.node_id}" {if
-                condition="strtolower($subItem.node_controller)==strtolower($controller) && strtolower($subItem.node_action)==strtolower($action)"
+                condition="$subItem.node_controller==strtolower($controller) && $subItem.node_action==strtolower($action)"
                 }class="is-active" {/if}>{$subItem.node_title}</el-menu-item>
             {/volist}
         </el-submenu>
@@ -28,7 +28,7 @@
         {else}
         <el-menu-item index="{$item.node_id}"
             onclick="location.href='/{$item.node_module}/{$item.node_controller}/{$item.node_action}';" {if
-            condition="strtolower($item.node_controller)==strtolower($controller) && strtolower($item.node_action)==strtolower($action)"
+            condition="$item.node_controller==strtolower($controller) && $item.node_action==strtolower($action)"
             }class="is-active" {/if}>
             <i {if condition='$item.node_icon' }class="{$item.node_icon}" {else}class="el-icon-menu" {/if}></i>
             {$item.node_title}

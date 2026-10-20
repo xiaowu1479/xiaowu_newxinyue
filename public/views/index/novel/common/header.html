@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        (function() {
+            var savedTheme = localStorage.getItem('novel-theme') || 'dark';
+            if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.documentElement.setAttribute('data-page-loading', '');
+        })();
+    </script>
+    <style>
+        [v-cloak] {
+            display: none !important;
+        }
+        [data-page-loading] #app {
+            visibility: hidden !important;
+        }
+        [data-page-loading] body,
+        [data-page-loading] html {
+            background-color: #0f1420 !important;
+        }
+        [data-theme="dark"] body,
+        [data-theme="dark"] html {
+            background-color: #0f1420 !important;
+        }
+        [data-theme="light"] body,
+        [data-theme="light"] html {
+            background-color: #f5f2ea !important;
+        }
+    </style>
+    {notempty name="config.app_icon"}
+    <link rel="icon" href="{$config.app_icon}" />
+    {/notempty}
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width,user-scalable=no,maximum-scale=1.0">
+    <title>{$seo_title}</title>
+    <meta name="keywords" content="{$seo_keywords}" />
+    <meta name="description" content="{$seo_description}" />
+    <meta name="referrer" content="no-referrer">
+    <link rel="stylesheet" href="__STATIC__/novel/common/static/css/novel.css?v=20260930d">
+
+    {$config.seo_statistics|raw}
+
+    <style>
+        {$config.home_css}
+    </style>
+</head>

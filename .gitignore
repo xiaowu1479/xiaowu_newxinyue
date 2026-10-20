@@ -37,3 +37,8 @@
 Thumbs.db
 
 # 说明: manifest.json 需要提交(站点更新时读取),因此不要忽略它
+
+# ---- 网盘凭证（严禁提交）----
+/config/*_auth.json
+/config/*_device.json
+/extend/netdisk/pan/*token*.json

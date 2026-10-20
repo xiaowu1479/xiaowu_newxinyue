@@ -63,7 +63,7 @@
                     <div class="cat" v-show="pc_type!=2">
                         <div class="l">资源地址</div>
                         <div class="r">
-                            <a href="javascript:;" onclick="linkBtn()" class="btn">{if condition="$detail.is_time == 2"}点击获取链接{else /}{$detail.url}{/if}</a>
+                            <a href="javascript:;" onclick="linkBtn()" class="btn">{$detail.url}</a>
                         </div>
                     </div>
                     {notempty name="detail.code"}
@@ -73,11 +73,9 @@
                     </div>
                     {/notempty}
                     <div class="btns">
-                        {if condition="$detail.is_time != 2"}
                         <div class="btn"
                             @click.stop="copyText($event,'{$detail.title|trim}','{$detail.url}','{$detail.code}')"><i
                                 class="iconfont icon-fenxiang1"></i>复制分享</div>
-                        {/if}
                         {if condition="$detail.is_type == 9"}
                         <!-- 磁力链接使用迅雷下载 -->
                         <a class="btn btnCol" href="javascript:;" onclick="thunderDownload('{$detail.url}')" style="background: #0099ff;"><i
@@ -142,36 +140,12 @@
             var jsonData = '<?php echo json_encode($detail, JSON_UNESCAPED_UNICODE); ?>';
             jsonData = jsonData.replace(/[\x00-\x1F\x7F]/g, '');
             var item = JSON.parse(jsonData);
-            var rawUrl = item.url || '';
-            if (rawUrl.startsWith('http') || rawUrl.startsWith('magnet:')) {
-                // 永久/临时资源：直接显示（保持不变）
-                if (app.pc_type == 1) {
-                    safeJump(item.url);
-                } else {
-                    item.showUrl = item.url;
-                    app.dialogUrl = true;
-                    showUrlFun(item);
-                }
+            if (app.pc_type == 1) {
+                safeJump(item.url);
             } else {
-                // 外部资源(is_time=2)：加密链接，转存后显示
+                item.showUrl = item.url
                 app.dialogUrl = true;
-                app.dialogLoading = true;
-                axios.post('/api/other/save_url', {
-                    url: encodeURIComponent(rawUrl),
-                    title: item.title
-                }).then(res => {
-                    if (res.data.code == 200) {
-                        item.url = res.data.data.url;
-                        item.showUrl = res.data.data.url;
-                    } else {
-                        item.showUrl = '';
-                        item.message = res.data.message;
-                    }
-                    app.dialogLoading = false;
-                    showUrlFun(item);
-                }).catch(() => {
-                    app.dialogLoading = false;
-                });
+                showUrlFun(item);
             }
         }
     </script>

@@ -28,7 +28,7 @@
                 <el-switch v-model="scope.row.is_update==1?true:false" @change="catClickStatus(scope.row.source_category_id,'is_update',scope.row.is_update)"></el-switch>
             </template>
         </el-table-column>
-        <el-table-column label="首页展示" width="120" align="center">
+        <el-table-column label="前台展示" width="120" align="center">
             <template slot-scope="scope">
                 <el-switch v-model="scope.row.status==1?false:true" @change="catClickStatus(scope.row.source_category_id,'status',scope.row.status)"></el-switch>
             </template>

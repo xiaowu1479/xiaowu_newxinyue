@@ -6,19 +6,16 @@ namespace app\index;
 
 use think\App;
 use EasyWeChat\Factory;
+use think\facade\View;
 use app\model\Conf as ConfModel;
-use app\model\User as UserModel;
+use app\service\ThemeService;
+use app\service\BannerService;
 
 /**
  * 控制器基础类
  */
 abstract class QfShop
 {
-    protected const FRONTEND_TEMPLATE_MAP = [
-        'classic' => 'news',
-        'simple' => 'simple',
-    ];
-
     /**
      * 应用实例
      * @var \think\App
@@ -41,27 +38,29 @@ abstract class QfShop
     // 初始化
     protected function initialize()
     {
-        $this->confModel = new ConfModel();
+        // 前台配置装载：全量 conf + 当前主题覆盖合并（内部键剔除），规则统一在 ThemeService 维护
+        $configs = (new ConfModel())->select()->toArray();
+        config(ThemeService::mergeFrontendConfig($configs), 'qfshop');
+        // simple 主题首页轮播数据注入（DB 读取、目录回退与缓存统一在 BannerService）
+        View::assign('bannerListJson', BannerService::frontendJson());
+    }
 
-        $configs = $this->confModel->select()->toArray();
-        $c = array_column($configs, 'conf_value', 'conf_key');
-        config($c, 'qfshop');
+    /**
+     * 主题注册表（config/themes.php）
+     */
+    protected function getFrontendThemes(): array
+    {
+        return ThemeService::registry()['themes'];
     }
 
     protected function getFrontendTemplateKey(): string
     {
-        $template = (string) config('qfshop.frontend_template', 'simple');
-
-        if (!isset(self::FRONTEND_TEMPLATE_MAP[$template])) {
-            return 'simple';
-        }
-
-        return $template;
+        return ThemeService::currentThemeKey();
     }
 
     protected function getFrontendTemplateDirectory(): string
     {
-        return self::FRONTEND_TEMPLATE_MAP[$this->getFrontendTemplateKey()];
+        return ThemeService::themeDirectory(ThemeService::currentThemeKey());
     }
 
     protected function fetchFrontendView(string $view): string

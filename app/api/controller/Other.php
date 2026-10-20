@@ -4,6 +4,7 @@ namespace app\api\controller;
 
 use think\App;
 use think\facade\Cache;
+use think\facade\Db;
 use think\facade\Request;
 use think\facade\Log;
 use app\api\QfShop;
@@ -11,6 +12,8 @@ use app\model\Source as SourceModel;
 use app\model\Days as DaysModel;
 use app\model\ApiList as ApiListModel;
 use Lizhichao\Word\VicWord;
+use app\service\NovelTransferService;
+use app\service\PanBackendService;
 
 class Other extends QfShop
 {
@@ -65,9 +68,16 @@ class Other extends QfShop
         }
         $is_type_str = implode(',', $is_type_list);
 
-        // 生成缓存 key（10 分钟），包含检测资源开关状态，开关切换后自动失效
-        $isQuanZc = Config('qfshop.is_quan_zc') == 1 ? 1 : 0;
-        $cacheKey = 'web_search_' . md5($title . '|' . $is_type_str . '|' . $is_show . '|' . $isQuanZc);
+        // 小说聚合搜索最慢（no-novel-node 多书源并发，兜底 35s），调整到其他线路之后处理，
+        // 避免 SSE 前段输出被阻塞（前端先到先显示；缓存 key 用 $is_type_str 不受顺序影响）
+        $novelKey = array_search(11, $is_type_list);
+        if ($novelKey !== false) {
+            unset($is_type_list[$novelKey]);
+            $is_type_list[] = 11;
+        }
+
+        // 生成缓存 key（10 分钟）
+        $cacheKey = 'web_search_' . md5($title . '|' . $is_type_str . '|' . $is_show);
         $cachedLines = Cache::get($cacheKey);
         if (is_array($cachedLines) && !empty($cachedLines)) {
             foreach ($cachedLines as $line) {
@@ -122,27 +132,27 @@ class Other extends QfShop
 
         // 定义输出单条数据的回调函数
         $outputCallback = function($item, $lineName) use ($is_show, $logFile, $sendLine) {
-            if (isset($item['error'])) {
-                $sendLine("data: " . json_encode(['error' => $item['error']], JSON_UNESCAPED_UNICODE) . "\n\n");
-                return 0;
+            // 小说线路已经预置 is_type=11，不要被 determineIsType 覆盖
+            if (empty($item['is_type']) || $item['is_type'] != 11) {
+                $item['is_type'] = determineIsType($item['url']);
             }
-            $item['is_type'] = determineIsType($item['url']);
             $logMsg = date('Y-m-d H:i:s') . " [web_search] Processing item: title=" . $item['title'] . ", url=" . substr($item['url'], 0, 50) . "..., is_type=" . $item['is_type'] . "\n";
             file_put_contents($logFile, $logMsg, FILE_APPEND);
             
-            if (Config('qfshop.is_quan_zc') == 1) {
-                //检测是否有效 - 支持夸克和阿里网盘，过滤失效资源
-                $infoData = $this->verificationUrl($item['url'], $item['is_type']);
+            if (Config('qfshop.is_quan_zc') == 1 && $item['is_type'] != 11) {
+                //检测是否有效 - 支持夸克和阿里网盘（小说为普通网页链接，跳过网盘有效性验证）
+                $infoData = verificationUrl($item['url'], $item['is_type']);
                 if (!empty($infoData['stoken'])) {
                     $item['stoken'] = $infoData['stoken'];
                 }
                 if ($infoData === 0) {
-                    $logMsg = date('Y-m-d H:i:s') . " [web_search] Item verification failed, filtered out: " . $item['url'] . "\n";
+                    $logMsg = date('Y-m-d H:i:s') . " [web_search] Item verification failed but still outputting: " . $item['url'] . "\n";
                     file_put_contents($logFile, $logMsg, FILE_APPEND);
-                    // 检测失效，过滤掉该资源
-                    return 0;
+                    // 测试模式下，即使验证失败也输出数据
+                    $item['verification_status'] = 'failed';
+                } else {
+                    $item['verification_status'] = 'success';
                 }
-                $item['verification_status'] = 'success';
             }
             if (config('qfshop.is_quan_type') != 1 && $is_show != 1 && $this->hasPanAccount($item['is_type'])) {
                 $item['url'] = encryptObject($item['url']);
@@ -183,6 +193,8 @@ class Other extends QfShop
                     $outputCount = $this->handleWeb($line, $title, $outputCallback);
                 } else if ($type === 'kk') {
                     $outputCount = $this->handleKk($line, $title, $line['num'], $outputCallback);
+                } else if ($type === 'novel') {
+                    $outputCount = $this->handleNovel($line, $title, $outputCallback);
                 }
                 
                 $logMsg = date('Y-m-d H:i:s') . " [web_search] Output $outputCount items for line: " . $line['name'] . "\n";
@@ -228,7 +240,7 @@ class Other extends QfShop
             $map = [];
             $map[] = ['status', '=', 1];
             $map[] = ['is_delete', '=', 0];
-            $map[] = ['is_time', 'in', [0, 2]]; // 只查询永久+外部资源，不查询临时资源
+            $map[] = ['is_time', '=', 0]; // 只查询永久资源，不查询临时资源
             
             // 简单模糊查询（description 字段才是用于搜索的副标题字段）
             $map[] = ['title|description', 'like', '%' . trim($title) . '%'];
@@ -239,8 +251,7 @@ class Other extends QfShop
                 $query->whereIn('is_type', $isTypeList);
             }
 
-            $items = $query->field('source_id, title, description, url, is_type, code, update_time, status, is_time')
-                ->order('is_time', 'asc')   // 永久资源(0)排前，外部资源(2)排后
+            $items = $query->field('source_id, title, description, url, is_type, code, update_time, status')
                 ->order('source_id', 'desc')
                 ->limit(20)
                 ->select()
@@ -255,8 +266,7 @@ class Other extends QfShop
                 $formattedItems[] = [
                     'title' => $item['title'],
                     'desc' => $item['description'] ?? '',
-                    'url' => (!empty($item['is_time']) && $item['is_time'] == 2 && strpos($item['url'], 'http') === 0 && hasPanAccount(intval($item['is_type'] ?? 0)))
-                        ? encryptObject($item['url']) : $item['url'],
+                    'url' => $item['url'],
                     'is_type' => intval($item['is_type'] ?? 0),
                     'code' => $item['code'] ?? '',
                     'datetime' => date('Y-m-d H:i:s', $updateTime),
@@ -288,10 +298,10 @@ class Other extends QfShop
             $map = [];
             $map[] = ['status', '=', 1];
             $map[] = ['is_delete', '=', 0];
-            $map[] = ['is_time', 'in', [0, 2]];
+            $map[] = ['is_time', '=', 0];
 
             $list = $this->model->where($map)
-                ->field('source_id as id, title, url, create_time as time, is_type, is_time')
+                ->field('source_id as id, title, url, create_time as time, is_type')
                 ->order('source_id', 'desc')
                 ->limit(9)
                 ->select()
@@ -306,12 +316,11 @@ class Other extends QfShop
                 } else {
                     $datetime = $time;
                 }
-
+                
                 $formattedItems[] = [
                     'id' => $item['id'],
                     'title' => $item['title'],
-                    'url' => (!empty($item['is_time']) && $item['is_time'] == 2 && strpos($item['url'], 'http') === 0 && hasPanAccount(intval($item['is_type'] ?? 0)))
-                        ? encryptObject($item['url']) : $item['url'],
+                    'url' => $item['url'],
                     'datetime' => $datetime,
                     'is_type' => $item['is_type'],
                     'pantype' => $panTypeMap[$item['is_type']]['name'] ?? '网盘资源'
@@ -378,12 +387,12 @@ class Other extends QfShop
             $map = [];
             $map[] = ['status', '=', 1];
             $map[] = ['is_delete', '=', 0];
-            $map[] = ['is_time', 'in', [0, 2]];
+            $map[] = ['is_time', '=', 0];
             
             // 先尝试获取有浏览量的资源（按浏览量降序）
             $hotList = $this->model->where($map)
                 ->where('page_views', '>', 0)
-                ->field('source_id as id, title, url, create_time as time, is_type, page_views, is_time')
+                ->field('source_id as id, title, url, create_time as time, is_type, page_views')
                 ->order('page_views', 'desc')
                 ->limit(9)
                 ->select()
@@ -403,7 +412,7 @@ class Other extends QfShop
                 }
                 
                 $additionalList = $this->model->where($additionalMap)
-                    ->field('source_id as id, title, url, create_time as time, is_type, page_views, is_time')
+                    ->field('source_id as id, title, url, create_time as time, is_type, page_views')
                     ->order('source_id', 'desc')
                     ->limit(9 - count($hotList))
                     ->select()
@@ -424,8 +433,7 @@ class Other extends QfShop
                 $formattedItems[] = [
                     'id' => $item['id'],
                     'title' => $item['title'],
-                    'url' => (!empty($item['is_time']) && $item['is_time'] == 2 && strpos($item['url'], 'http') === 0 && hasPanAccount(intval($item['is_type'] ?? 0)))
-                        ? encryptObject($item['url']) : $item['url'],
+                    'url' => $item['url'],
                     'datetime' => $datetime,
                     'is_type' => $item['is_type'],
                     'pantype' => $panTypeMap[$item['is_type']]['name'] ?? '网盘资源',
@@ -460,7 +468,7 @@ class Other extends QfShop
             $map = [];
             $map[] = ['status', '=', 1];
             $map[] = ['is_delete', '=', 0];
-            $map[] = ['is_time', 'in', [0, 2]];
+            $map[] = ['is_time', '=', 0];
             
             // 如果指定了网盘类型，添加筛选条件
             if ($panType !== '' && is_numeric($panType)) {
@@ -477,7 +485,7 @@ class Other extends QfShop
 
             // 获取分页数据
             $list = $this->model->where($map)
-                ->field('source_id as id, title, url, create_time as time, is_type, source_category_id, is_time')
+                ->field('source_id as id, title, url, create_time as time, is_type, source_category_id')
                 ->order('create_time', 'desc')
                 ->page($page, $pageSize)
                 ->select()
@@ -496,8 +504,7 @@ class Other extends QfShop
                 $formattedItems[] = [
                     'id' => $item['id'],
                     'title' => $item['title'],
-                    'url' => (!empty($item['is_time']) && $item['is_time'] == 2 && strpos($item['url'], 'http') === 0 && hasPanAccount(intval($item['is_type'] ?? 0)))
-                        ? encryptObject($item['url']) : $item['url'],
+                    'url' => $item['url'],
                     'datetime' => $datetime,
                     'is_type' => $item['is_type'],
                     'pantype' => $panTypeMap[$item['is_type']]['name'] ?? '网盘资源'
@@ -602,6 +609,8 @@ class Other extends QfShop
                 $result = $this->handleWeb($line, $title);
             } else if ($type === 'kk') {
                 $result = $this->handleKk($line, $title, $line['num']);
+            } else if ($type === 'novel') {
+                $result = $this->handleNovel($line, $title);
             }
 
             foreach ($result as $item) {
@@ -610,7 +619,7 @@ class Other extends QfShop
                 
                 if ($num_success < $num_total) {
                     //检测是否有效 - 支持夸克和阿里网盘
-                    $infoData = $this->verificationUrl($item['url'], $item['is_type']);
+                    $infoData = verificationUrl($item['url'], $item['is_type']);
                     if (!empty($infoData['stoken'])) {
                         $item['stoken'] = $infoData['stoken'];
                     }
@@ -622,7 +631,7 @@ class Other extends QfShop
                     }
                 } else if ($num_success_zc < $num_total_zc) {
                     //检测是否有效 - 支持夸克和阿里网盘
-                    $infoData = $this->verificationUrl($item['url'], $item['is_type']);
+                    $infoData = verificationUrl($item['url'], $item['is_type']);
                     if (!empty($infoData['stoken'])) {
                         $item['stoken'] = $infoData['stoken'];
                     }
@@ -714,38 +723,17 @@ class Other extends QfShop
             $headerArr[] = "$k: $v";
         }
 
-        // 认证处理：如果开启了认证，自动获取/刷新 token
-        if (!empty($line['auth_enabled']) && $line['auth_enabled'] == 1) {
-            $token = $this->getAuthToken($line);
-            if ($token) {
-                $headerArr[] = "Authorization: Bearer " . $token;
-            }
-        }
-
         // 确保POST请求有正确的Content-Type
         if ($method === 'POST' && !isset($headers['Content-Type'])) {
             $headerArr[] = "Content-Type: application/x-www-form-urlencoded";
         }
 
-        // 判断是否为JSON请求（headers中配置了application/json）
-        $isJson = false;
-        foreach ($headerArr as $h) {
-            if (stripos($h, 'Content-Type:') === 0 && stripos($h, 'application/json') !== false) {
-                $isJson = true;
-                break;
-            }
-        }
-
         // 简化参数处理
         $queryParams = $method === 'GET' ? $params : [];
 
-        // 处理POST数据：JSON请求用json_encode，否则用表单编码
+        // 处理POST数据
         if ($method === 'POST' && !empty($params)) {
-            if ($isJson) {
-                $postData = json_encode($params, JSON_UNESCAPED_UNICODE);
-            } else {
-                $postData = http_build_query($params);
-            }
+            $postData = http_build_query($params);
             $result = curlHelper($url, $method, $postData, $headerArr, $queryParams);
         } else {
             $result = curlHelper($url, $method, $method === 'GET' ? null : $params, $headerArr, $queryParams);
@@ -770,16 +758,6 @@ class Other extends QfShop
             $errMsg = date('Y-m-d H:i:s') . " [handleApi] Response JSON decode error: " . json_last_error_msg() . "\n";
             file_put_contents($logFile, $errMsg, FILE_APPEND);
             return [];
-        }
-
-        // 检测上游接口错误（HTTP状态码非200或响应含error字段）
-        $httpCode = $result['detail']['http_code'] ?? 200;
-        if ($httpCode != 200 || isset($response['error'])) {
-            $errorMsg = $response['error'] ?? $response['message'] ?? ('HTTP错误码: ' . $httpCode);
-            if ($outputCallback && is_callable($outputCallback)) {
-                $outputCallback(['error' => $errorMsg], $line['name'] ?? 'API线路');
-            }
-            return $outputCallback ? 0 : [];
         }
 
         // 调试日志：记录响应结构
@@ -811,61 +789,6 @@ class Other extends QfShop
         file_put_contents($logFile, $logMsg, FILE_APPEND);
 
         return $returnResults;
-    }
-
-    /**
-     * 获取认证Token（带缓存，默认23小时过期）
-     * 从接口地址自动拼接认证地址：将最后一段路径替换为 auth/login
-     */
-    private function getAuthToken($line)
-    {
-        $cacheKey = 'api_auth_token_' . md5($line['url']);
-        $cached = Cache::get($cacheKey);
-        if (!empty($cached)) {
-            return $cached;
-        }
-
-        // 从接口地址拼接认证地址
-        // http://192.168.3.168:8009/api/search -> http://192.168.3.168:8009/api/auth/login
-        $parsed = parse_url($line['url']);
-        $basePath = isset($parsed['path']) ? $parsed['path'] : '';
-        // 去掉最后一段路径，再拼接 auth/login
-        $baseDir = preg_replace('#/[^/]*$#', '', $basePath);
-        $authUrl = $parsed['scheme'] . '://' . $parsed['host'];
-        if (isset($parsed['port'])) {
-            $authUrl .= ':' . $parsed['port'];
-        }
-        $authUrl .= $baseDir . '/auth/login';
-
-        $authBody = json_encode([
-            'username' => $line['auth_username'],
-            'password' => $line['auth_password'],
-        ]);
-
-        $headerArr = ['Content-Type: application/json'];
-        $result = curlHelper($authUrl, 'POST', $authBody, $headerArr, [], '', 10);
-
-        $logFile = app()->getRuntimePath() . 'api/log/' . date('Ym') . '/' . date('d') . '_debug.log';
-        if (empty($result['body'])) {
-            file_put_contents($logFile, date('Y-m-d H:i:s') . " [getAuthToken] Empty response from: " . $authUrl . "\n", FILE_APPEND);
-            return '';
-        }
-
-        $response = json_decode($result['body'], true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            file_put_contents($logFile, date('Y-m-d H:i:s') . " [getAuthToken] JSON decode error: " . json_last_error_msg() . "\n", FILE_APPEND);
-            return '';
-        }
-
-        $token = $response['token'] ?? '';
-        if (empty($token)) {
-            file_put_contents($logFile, date('Y-m-d H:i:s') . " [getAuthToken] Token not found in response: " . substr($result['body'], 0, 200) . "\n", FILE_APPEND);
-            return '';
-        }
-
-        // 缓存23小时（留1小时余量）
-        Cache::set($cacheKey, $token, 82800);
-        return $token;
     }
 
     /**
@@ -1409,45 +1332,566 @@ class Other extends QfShop
     }
 
     /**
-     * 验证网盘地址是否有效
-     * @param string $url 网盘分享链接
-     * @param int $isType 网盘类型 0夸克 1阿里 2百度 3UC 4迅雷
-     * @return array|int
+     * 小说线路处理（调用 no-novel-node 的 /search/aggregated 聚合搜索）
+     * no-novel-node 响应结构：
+     *   { code:200, message:'OK', data: { books: [{ name, author, cover, url, intro, latestChapter, ... }, ...] } }
+     * 统一返回：
+     *   title   - 小说名（来自 name / title / bookName）
+     *   url     - 详情页 URL（用于打开查看 / 下载）
+     *   cover   - 封面图绝对地址
+     *   author  - 作者
+     *   latestChapter - 最新章节
+     *   desc    - 简介
+     *   datetime - 当前时间（小说无统一时间字段）
+     *   is_type - 11（小说类型）
+     *
+     * @param array $line 线路配置
+     * @param string $title 搜索关键字
+     * @param callable|null $outputCallback
+     * @return int|array
      */
-    private function verificationUrl($url, $isType = 0)
+    private function handleNovel($line, $title, $outputCallback = null)
     {
-        // 磁力链接直接返回，不需要验证
-        if (preg_match('/^magnet:\?xt=urn:btih:/i', $url)) {
-            return ['url' => $url];
+        $maxCount = (int)($line['count'] ?? 20);
+        if ($maxCount <= 0) {
+            return $outputCallback ? 0 : [];
         }
 
-        // 有效性检测结果缓存 10 分钟
-        $cacheKey = 'verify_url_' . md5($url) . '_' . $isType;
-        $cached = Cache::get($cacheKey);
-        if ($cached !== null) {
-            return $cached;
+        $baseUrl = trim((string)($line['url'] ?? ''));
+        if ($baseUrl === '') {
+            return $outputCallback ? 0 : [];
         }
+        // 去掉尾斜杠，避免拼接时产生 //
+        $baseUrl = rtrim($baseUrl, '/');
 
-        $code = '';
-        if (preg_match('/\?pwd=([^,\s&]+)/', $url, $pwdMatch)) {
-            $code = trim($pwdMatch[1]);
-        }
-        $urlData = [
-            'url' => $url,
-            'code' => $code,
-            'isType' => 1  // 1表示只获取资源信息，不转存
+        $searchUrl = $baseUrl . '/search/aggregated?kw=' . urlencode($title) . '&searchLimit=' . $maxCount;
+
+        $headers = [
+            'Accept: application/json',
+            'User-Agent: Mozilla/5.0 (compatible; xinyue-novel-search/1.0)',
         ];
-
-        $transfer = new \netdisk\Transfer();
-        $res = $transfer->transfer($urlData);
-
-        if ($res['code'] !== 200) {
-            Cache::set($cacheKey, 0, 600);
-            return 0;
+        // 兼容鉴权：管理员如在 url 中以 "?token=xxx" 形式携带，或 fields.auth_enabled 开启
+        if (!empty($line['auth_enabled']) && !empty($line['auth_username'])) {
+            $headers[] = 'Authorization: Basic ' . base64_encode($line['auth_username'] . ':' . ($line['auth_password'] ?? ''));
         }
 
-        Cache::set($cacheKey, $res['data'], 600);
-        return $res['data'];
+        // no-novel-node 聚合搜索：并发扫描多个书源，每个书源兜底超时 30s（见 plugin/index.js#SOURCE_TIMEOUT），
+        // 1~2 个慢书源就会把聚合耗时推到 15s 以上。PHP 这边 15s 超时极易误杀。
+        // 提到 35s 覆盖单书源兜底 + 网络多结果余量，超时仍失败时降级返回空（前端 SSE 流式输出已有 [DONE] 收尾）。
+        $response = curlHelper($searchUrl, 'GET', null, $headers, '', '', 35);
+        $logFile = app()->getRuntimePath() . 'api/log/' . date('Ym') . '/' . date('d') . '_debug.log';
+        if (!is_dir(dirname($logFile))) {
+            mkdir(dirname($logFile), 0755, true);
+        }
+
+        if (isset($response['error']) || empty($response['body'])) {
+            file_put_contents($logFile, date('Y-m-d H:i:s') . " [handleNovel] request failed: " . ($response['error'] ?? 'empty body') . " url=$searchUrl\n", FILE_APPEND);
+            return $outputCallback ? 0 : [];
+        }
+
+        $payload = json_decode($response['body'], true);
+        if (!is_array($payload) || ($payload['code'] ?? 0) != 200) {
+            file_put_contents($logFile, date('Y-m-d H:i:s') . " [handleNovel] bad payload: " . substr($response['body'], 0, 200) . "\n", FILE_APPEND);
+            return $outputCallback ? 0 : [];
+        }
+
+        // 兼容两种结构：data.books（数组）或 data 直接为数组
+        $books = isset($payload['data']['books']) && is_array($payload['data']['books'])
+            ? $payload['data']['books']
+            : (isset($payload['data']) && is_array($payload['data']) ? $payload['data'] : []);
+        if (empty($books)) {
+            return $outputCallback ? 0 : [];
+        }
+
+        $nowTime = date('Y-m-d H:i:s');
+        $results = [];
+        foreach ($books as $book) {
+            if (!is_array($book)) continue;
+            $bookUrl = (string)($book['url'] ?? $book['bookUrl'] ?? '');
+            $cover = (string)($book['cover'] ?? $book['coverUrl'] ?? '');
+            if ($cover !== '' && $bookUrl !== '') {
+                // 小说服务返回的封面链接指向内网地址，浏览器不可达，
+                // 统一重写为本站代理（以书籍详情页链接为参数，由 novel_cover 转发）
+                $cover = '/api/other/novel_cover?url=' . urlencode($bookUrl);
+            }
+            $item = [
+                'title'   => (string)($book['name'] ?? $book['title'] ?? $book['bookName'] ?? ''),
+                'url'     => $bookUrl,
+                'desc'    => (string)($book['intro'] ?? $book['desc'] ?? $book['description'] ?? ''),
+                'author'  => (string)($book['author'] ?? $book['authorName'] ?? ''),
+                'cover'   => $cover,
+                'latestChapter' => (string)($book['latestChapter'] ?? $book['lastChapter'] ?? ''),
+                'source'  => $book['source'] ?? ($book['bookSourceName'] ?? ($book['sourceName'] ?? '')),
+                'category' => $book['category'] ?? ($book['kind'] ?? ''),
+                'datetime' => $nowTime,
+                'is_type' => 11,
+            ];
+            if ($item['title'] === '' || $item['url'] === '') {
+                continue;
+            }
+            $results[] = $item;
+            if ($outputCallback && is_callable($outputCallback)) {
+                $outputCallback($item, $line['name'] ?? '小说线路');
+                if (count($results) >= $maxCount) break;
+            } else {
+                if (count($results) >= $maxCount) break;
+            }
+        }
+
+        return $outputCallback ? count($results) : $results;
+    }
+
+    /**
+     * 获取可用小说线路（pantype=11 且启用，按权重取最高）
+     * @return array|null {baseUrl, headers}，无可用线路时返回 null
+     */
+    private function getNovelLine()
+    {
+        $line = $this->ApiListModel->where('status', 1)->where('pantype', 11)->order('weight desc')->find();
+        if (!$line) {
+            return null;
+        }
+        $baseUrl = rtrim(trim((string)($line['url'] ?? '')), '/');
+        if ($baseUrl === '') {
+            return null;
+        }
+        $headers = [
+            'Accept: application/json',
+            'User-Agent: Mozilla/5.0 (compatible; xinyue-novel-proxy/1.0)',
+        ];
+        // 兼容鉴权：与 handleNovel/novel_rank 保持一致
+        if (!empty($line['auth_enabled']) && !empty($line['auth_username'])) {
+            $headers[] = 'Authorization: Basic ' . base64_encode($line['auth_username'] . ':' . ($line['auth_password'] ?? ''));
+        }
+        return ['baseUrl' => $baseUrl, 'headers' => $headers];
+    }
+
+    /**
+     * 小说搜索（GET 同步代理）：xinyue 只做转发，不掺任何业务逻辑（无 SSE、无缓存、无反馈统计、无 URL 加密）。
+     * 数据源完全来自 no-novel-node /search/aggregated；前端拿到结果直接渲染。
+     * 设计原则：xinyue 是纯代理/转发层，小说业务规则与命中逻辑一律在 no-novel-node 内闭环。
+     *
+     * 入参：title（必填）、searchLimit（可选）
+     * 返回：no-novel-node 原始 { code, message, data: [...] }
+     *
+     * @return \think\Response
+     */
+    public function novel_search()
+    {
+        $title = trim((string)input('title', ''));
+        if ($title === '') {
+            return jerr('缺少搜索关键字');
+        }
+        $line = $this->getNovelLine();
+        if ($line === null) {
+            return jerr('暂无可用小说线路');
+        }
+
+        $searchLimit = (int)input('searchLimit', 20);
+        if ($searchLimit <= 0 || $searchLimit > 100) $searchLimit = 20;
+
+        // 透传到 no-novel-node /search/aggregated；超时 35s 与之前 handleNovel 保持一致
+        $url = $line['baseUrl'] . '/search/aggregated?kw=' . urlencode($title)
+             . '&searchLimit=' . $searchLimit;
+        $response = curlHelper($url, 'GET', null, $line['headers'], '', '', 35);
+
+        if (isset($response['error']) || empty($response['body'])) {
+            Log::error('[novel_search] upstream unreachable: ' . ($response['error'] ?? 'empty body'));
+            return jerr('小说服务暂时不可用');
+        }
+        $payload = json_decode($response['body'], true);
+        if (!is_array($payload)) {
+            return jerr('小说服务返回数据格式异常');
+        }
+        // 把 no-novel-node 返回的相对封面地址重写为本站代理（同 novel_cover 处理思路）：
+        // 浏览器不能直达内网 no-novel-node，统一走 /api/other/novel_cover 转发
+        $data = $payload['data'] ?? [];
+        if (is_array($data)) {
+            $list = isset($data['books']) && is_array($data['books']) ? $data['books'] : $data;
+            if (is_array($list)) {
+                foreach ($list as &$item) {
+                    if (is_array($item) && !empty($item['url']) && empty($item['cover'])) {
+                        $item['cover'] = '/api/other/novel_cover?url=' . urlencode($item['url']);
+                    }
+                }
+                unset($item);
+            }
+        }
+        // 透传 code/message；data 已就地改写
+        jok($payload['message'] ?? 'OK', $data);
+    }
+
+    /**
+     * 小说封面代理：转发小说服务 /search/cover（磁盘缓存），供前端 <img> 直接引用
+     * @return void
+     */
+    public function novel_cover()
+    {
+        $bookUrl = input('url', '');
+        $line = $this->getNovelLine();
+        if ($line === null || $bookUrl === '') {
+            header('HTTP/1.1 404 Not Found');
+            exit;
+        }
+        $apiUrl = $line['baseUrl'] . '/search/cover?url=' . urlencode($bookUrl);
+        $response = curlHelper($apiUrl, 'GET', null, $line['headers'], '', '', 20);
+        if (isset($response['error']) || empty($response['body'])) {
+            header('HTTP/1.1 404 Not Found');
+            exit;
+        }
+        // 透传内容类型并允许浏览器本地缓存一天（封面基本不变）
+        $contentType = (string)($response['detail']['content_type'] ?? 'image/jpeg');
+        if ($contentType === '' || stripos($contentType, 'image') === false) {
+            $contentType = 'image/jpeg';
+        }
+        header('Content-Type: ' . $contentType);
+        header('Cache-Control: public, max-age=86400');
+        echo $response['body'];
+        exit;
+    }
+
+    /**
+     * 小说下载模式配置下发：向下游前端透出下载方式与目标网盘（读 xinyue 自己的 qf_conf）
+     *   - 开启转存且已配置账户 → mode=transfer，pans=按网盘类型分组的可选项
+     *   - 未开启 → mode=download（仅下载，不上传网盘）
+     * 前端据此在结果列表展示"下载"或逐盘"存入XX网盘"按钮（多盘时可选择），
+     * 点击后直接入队，无需用户手动选择网盘账户
+     */
+    public function novel_download_config()
+    {
+        // 转存配置已迁入 xinyue（qf_conf），不再读小说服务 /config
+        $conf = NovelTransferService::getPanConfig();
+        $mode = 'download';
+        $accounts = [];
+        if ($conf['enabled'] && !empty($conf['accounts'])) {
+            $mode = 'transfer';
+            $accounts = $conf['accounts'];
+        }
+        // 账户标识格式 {drive_type}_{userId}，按网盘类型分组（同类多账户合并），
+        // 供前端逐盘展示"存入XX网盘"按钮；panName 为兼容保留的合并中文名
+        $pans = [];
+        if ($mode === 'transfer') {
+            $grouped = [];
+            foreach ($accounts as $acc) {
+                $type = trim(explode('_', (string)$acc)[0]);
+                if ($type === '') {
+                    continue;
+                }
+                $grouped[$type][] = $acc;
+            }
+            foreach ($grouped as $type => $accs) {
+                $pans[] = ['type' => $type, 'name' => $this->driveTypeName($type), 'accounts' => $accs];
+            }
+        }
+        $panName = implode('、', array_filter(array_column($pans, 'name')));
+        jok('success', ['mode' => $mode, 'panName' => $panName, 'accounts' => $accounts, 'pans' => $pans]);
+    }
+
+    /**
+     * pan-backend 网盘驱动标识 → 中文名
+     * 键为各驱动 Adapter 的 DRIVE_TYPE 常量（账户 ID 前缀），与目录名不完全一致
+     * （如 123云盘目录 pan123 但 DRIVE_TYPE=123pan；115网盘目录 cloud115 但 DRIVE_TYPE=115）
+     */
+    private function driveTypeName($driveType)
+    {
+        $map = [
+            'quark'     => '夸克网盘',
+            'aliyun'    => '阿里云盘',
+            'baidu'     => '百度网盘',
+            'uc'        => 'UC网盘',
+            'xunlei'    => '迅雷网盘',
+            '115'       => '115网盘',
+            'cloud115'  => '115网盘',
+            '123pan'    => '123云盘',
+            'pan123'    => '123云盘',
+            'cloud189'  => '天翼云盘',
+            'cloud139'  => '移动云盘',
+            'guangya'   => '光鸭网盘',
+        ];
+        $key = strtolower(trim((string)$driveType));
+        return $map[$key] ?? '';
+    }
+
+    /**
+     * 小说资源获取（任务化，立即返回不等待）：
+     * 编排已从 no-novel-node 迁入 xinyue（NovelTransferService）：
+     *   - 后台开启转存（novel_pan_enabled 且已配置目标账户）→ mode=transfer，下载完成后
+     *     由 xinyue 直连 pan-backend 上传并生成分享链接
+     *   - 未开启或前端指定 __none__ → mode=download 仅服务端下载
+     * 两种模式均写任务表后在 shutdown 阶段（fastcgi_finish_request 后）FPM 内联执行，
+     * 进度与分享链接经 /api/other/novel_progress（SSE）推送，前端「下载中」面板实时展示
+     * 参数：url（书籍详情页链接，必填）；可选 accounts（逗号分隔，转存时覆盖后台默认账户）；
+     *           clientId（浏览器客户端标识，任务进度 SSE 仅推送给该客户端，实现多用户隔离）；
+     *           bookName/author/latestChapter（三元组尽力透传：秒回判定与缓存键用，缺失属常态）
+     */
+    public function novel_transfer()
+    {
+        $bookUrl = trim((string)input('url', ''));
+        $accounts = trim((string)input('accounts', ''));
+        $clientId = trim((string)input('clientId', ''));
+        if ($bookUrl === '') {
+            jerr('缺少书籍链接');
+        }
+
+        // 读 xinyue 自己的转存配置（qf_conf：novel_pan_enabled / novel_pan_accounts）
+        $conf = NovelTransferService::getPanConfig();
+        $mode = 'download';
+        $defaultAccounts = [];
+        if ($conf['enabled'] && !empty($conf['accounts'])) {
+            $mode = 'transfer';
+            $defaultAccounts = $conf['accounts'];
+        }
+
+        // 前端指定账户时覆盖后台配置；指定为空表示强制纯下载
+        if ($mode === 'transfer') {
+            if ($accounts === '__none__') {
+                $mode = 'download';
+                $defaultAccounts = [];
+            } elseif ($accounts !== '') {
+                $defaultAccounts = array_values(array_filter(array_map('trim', explode(',', $accounts))));
+                if (empty($defaultAccounts)) {
+                    jerr('未选择网盘账户');
+                }
+            }
+        }
+
+        $bookName = trim((string)input('bookName', ''));
+        $author = trim((string)input('author', ''));
+        $latestChapter = trim((string)input('latestChapter', ''));
+
+        $submitted = NovelTransferService::submit($bookUrl, $defaultAccounts, $clientId, $bookName, $author, $latestChapter);
+        switch ($submitted['kind']) {
+            case 'instant':
+                // 缓存全命中：结果随响应直达（事件表同步写入，SSE 侧同样能收到重放）
+                return jok('success', ['mode' => $mode, 'started' => true, 'accounts' => $defaultAccounts, 'result' => $submitted['result']]);
+            case 'duplicate':
+                return jok('success', ['mode' => $mode, 'started' => true, 'duplicate' => true, 'accounts' => $defaultAccounts]);
+            case 'busy':
+                return jerr('当前下载任务较多，请稍后再试');
+        }
+
+        $taskId = intval($submitted['task_id']);
+        // FPM 内联执行：响应先行落盘，之后在本 FPM 进程内跑完整编排
+        // （fastcgi_finish_request 只能在响应输出后调用一次；ignore_user_abort 防客户端断开中止 shutdown）
+        ignore_user_abort(true);
+        register_shutdown_function(function () use ($taskId) {
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+            NovelTransferService::runTask($taskId);
+        });
+        return jok('success', ['mode' => $mode, 'started' => true, 'accounts' => $defaultAccounts, 'taskId' => $taskId]);
+    }
+
+    /**
+     * 小说任务进度 SSE：本地面板事件流（编排迁入 xinyue 后不再透传 node）
+     * 数据源：qf_novel_task_event append-only 事件表，按 (client_id,id) 轮询输出；
+     * payload 即前端契约 JSON 原文（事件必带 bookUrl，可选 clientId 隔离）
+     * 重连重放：游标初始化取 10 分钟窗口内该 client_id 的最早事件前一位——
+     * 页面刷新/断网重连后 download-done/pan-upload-done 会重放，前端任务状态可恢复
+     */
+    public function novel_progress()
+    {
+        header('Content-Type: text/event-stream; charset=utf-8');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+        set_time_limit(0); // SSE 长连接，避免被 max_execution_time 中断
+        // 关闭所有输出缓冲层（含 php.ini output_buffering 的 SAPI 缓冲）：
+        // 攒批会导致 php-cgi 长时间无字节输出，触发 nginx fastcgi_read_timeout(60s)
+        // 静默超时断连，浏览器重连后关键事件（download-done/pan-upload-*）不重放 → 前端误报下载失败
+        while (ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+        ob_implicit_flush(true);
+
+        $clientId = trim((string)input('clientId', ''));
+        if ($clientId === '') {
+            // 无 clientId 无法隔离事件（node 时代为广播），保持最小响应即断开
+            echo "data: {\"type\":\"client-id-required\"}\n\n";
+            exit;
+        }
+
+        // 重连重放：10 分钟窗口内最早事件的前一位作为游标起点
+        $windowStart = time() - 600;
+        $oldest = Db::name('novel_task_event')
+            ->where('client_id', $clientId)
+            ->where('create_time', '>', $windowStart)
+            ->order('id asc')->value('id');
+        $lastId = $oldest ? intval($oldest) - 1 : 0;
+
+        $lastBeat = time();
+        while (true) {
+            if (connection_aborted()) {
+                exit;
+            }
+            // 注意：不可用 column('payload,id')——TP6 在"两字段且未传 key 参数"时会返回整行数组
+            // （数字索引），导致输出索引而非 payload、游标永不推进（无限重放同批事件）
+            $events = Db::name('novel_task_event')
+                ->where('client_id', $clientId)
+                ->where('id', '>', $lastId)
+                ->order('id asc')
+                ->limit(50)
+                ->field('id,payload')
+                ->select()
+                ->toArray();
+            foreach ($events as $ev) {
+                echo 'data: ' . $ev['payload'] . "\n\n";
+                $lastId = intval($ev['id']);
+            }
+            if (!empty($events)) {
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+                $lastBeat = time();
+            } elseif (time() - $lastBeat >= 15) {
+                // SSE 保活心跳（nginx fastcgi_read_timeout 防静默断连）
+                echo ": ping\n\n";
+                flush();
+                $lastBeat = time();
+            }
+            sleep(1);
+        }
+    }
+
+    /**
+     * 小说文件下载代理：流式转发小说服务 /book-download（服务器上已下载完成的书籍文件）
+     */
+    public function novel_file()
+    {
+        $filename = input('filename', '');
+        $line = $this->getNovelLine();
+        if ($line === null || $filename === '') {
+            jerr('参数错误');
+        }
+        $apiUrl = $line['baseUrl'] . '/book-download?filename=' . urlencode($filename);
+        header('Content-Type: application/octet-stream');
+        header("Content-Disposition: attachment; filename*=UTF-8''" . rawurlencode($filename));
+        header('Cache-Control: no-cache');
+        set_time_limit(0);
+        $ch = curl_init($apiUrl);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $line['headers']);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) {
+            echo $chunk;
+            if (ob_get_level() > 0) {
+                @ob_flush();
+            }
+            flush();
+            return strlen($chunk);
+        });
+        curl_exec($ch);
+        curl_close($ch);
+        exit;
+    }
+
+    /**
+     * 本地书列表代理：透传小说服务 /local-books（已下载完成的书籍，含文件存在状态）
+     * 供前端按书名匹配下载产物文件名
+     */
+    public function novel_local_books()
+    {
+        $line = $this->getNovelLine();
+        if ($line === null) {
+            jerr('暂无可用小说线路');
+        }
+        $page = max(1, intval(input('page', 1)));
+        $pageSize = min(100, max(1, intval(input('pageSize', 50))));
+        $apiUrl = $line['baseUrl'] . '/local-books?page=' . $page . '&pageSize=' . $pageSize;
+        $response = curlHelper($apiUrl, 'GET', null, $line['headers'], '', '', 15);
+        if (isset($response['error']) || (int)($response['detail']['http_code'] ?? 0) != 200 || empty($response['body'])) {
+            jerr('本地书列表查询失败');
+        }
+        $payload = json_decode($response['body'], true);
+        if (!is_array($payload) || ($payload['code'] ?? 0) != 200) {
+            jerr('本地书列表查询失败');
+        }
+        jok('success', $payload['data'] ?? []);
+    }
+
+    /**
+     * 番茄小说榜单代理接口（不走 SSE，普通 JSON）
+     * action=categories 获取男频/女频分类列表
+     * action=books 获取榜单书籍，参数：
+     *   gender   - 1男频 0女频
+     *   rankMold - 2阅读榜 1新书榜
+     *   categoryId  - 番茄分类 ID
+     *   offset/limit - 分页
+     *
+     * @return \think\Response
+     */
+    public function novel_rank()
+    {
+        $action = input('action', 'books');
+        try {
+            // 查找可用小说线路（与 handleNovel 相同的选取规则）
+            $line = $this->ApiListModel->where('status', 1)->where('pantype', 11)->order('weight desc')->find();
+            if (!$line) {
+                return jerr('暂无可用小说线路');
+            }
+            $baseUrl = rtrim(trim((string)($line['url'] ?? '')), '/');
+            if ($baseUrl === '') {
+                return jerr('小说线路未配置');
+            }
+
+            $headers = [
+                'Accept: application/json',
+                'User-Agent: Mozilla/5.0 (compatible; xinyue-novel-rank/1.0)',
+            ];
+            // 兼容鉴权：与 handleNovel 保持一致
+            if (!empty($line['auth_enabled']) && !empty($line['auth_username'])) {
+                $headers[] = 'Authorization: Basic ' . base64_encode($line['auth_username'] . ':' . ($line['auth_password'] ?? ''));
+            }
+
+            if ($action === 'categories') {
+                $apiUrl = $baseUrl . '/rank/categories';
+            } else {
+                $gender = input('gender', 1) == 0 ? 0 : 1;
+                $rankMold = input('rankMold', 2) == 1 ? 1 : 2;
+                $categoryId = preg_replace('/\D/', '', (string)input('categoryId', '1141'));
+                if ($categoryId === '') {
+                    $categoryId = '1141';
+                }
+                $offset = max(0, intval(input('offset', 0)));
+                $limit = min(50, max(1, intval(input('limit', 20))));
+                $apiUrl = $baseUrl . '/rank/books?gender=' . $gender . '&rankMold=' . $rankMold
+                    . '&categoryId=' . $categoryId . '&offset=' . $offset . '&limit=' . $limit;
+            }
+
+            $response = curlHelper($apiUrl, 'GET', null, $headers, '', '', 15);
+            if (isset($response['error']) || empty($response['body'])) {
+                Log::error("[novel_rank] request failed: " . ($response['error'] ?? 'empty body') . " url=$apiUrl");
+                return jerr('榜单服务暂时不可用');
+            }
+            $payload = json_decode($response['body'], true);
+            if (!is_array($payload) || ($payload['code'] ?? 0) != 200) {
+                Log::error("[novel_rank] bad payload: " . substr($response['body'], 0, 200));
+                return jerr('榜单数据获取失败');
+            }
+            return jok('OK', $payload['data'] ?? '');
+        } catch (\Throwable $e) {
+            Log::error("[novel_rank] exception: " . $e->getMessage());
+            return jerr('榜单数据获取失败');
+        }
+    }
+
+    /**
+     * 小说模板首页推荐位下发（公开接口，读 qf_novel_recommend 启用项，与 qf_banner 完全独立）
+     */
+    public function novel_recommend()
+    {
+        $limit = min(20, max(1, intval(input('limit', 10))));
+        $list = Db::name('novel_recommend')
+            ->where('novel_recommend_status', 0)
+            ->field('novel_recommend_title, novel_recommend_cover, novel_recommend_link')
+            ->order('novel_recommend_sort', 'asc')
+            ->order('novel_recommend_id', 'asc')
+            ->limit($limit)
+            ->select()
+            ->toArray();
+        return jok('OK', $list);
     }
 
     /**
@@ -1458,21 +1902,14 @@ class Other extends QfShop
     {
         $rawUrl = input('url', '');
         $decodedUrl = rawurldecode($rawUrl);
-        
-        // 调试日志
-        error_log('save_url - rawUrl: ' . $rawUrl);
-        error_log('save_url - decodedUrl: ' . $decodedUrl);
-        
+
         $value = [
             'title'  => input('title', ''),
             'url'    => $decodedUrl,
             'stoken' => input('stoken', ''),
         ];
         $decrypted = decryptObject($value['url']);
-        
-        // 调试日志
-        error_log('save_url - decrypted: ' . json_encode($decrypted));
-        
+
         // 如果解密结果是数组，取其中的 url 字段
         if (is_array($decrypted) && isset($decrypted['url'])) {
             $value['url'] = $decrypted['url'];
@@ -1481,13 +1918,11 @@ class Other extends QfShop
         }
 
         if (empty($value['url'])) {
-            error_log('save_url - 参数不对: url为空');
             return jerr("参数不对");
         }
-        
+
         // 如果只是解密链接（title为空），直接返回解密后的链接
         if (empty($value['title'])) {
-            error_log('save_url - 直接返回解密链接: ' . $value['url']);
             return jok('链接解密成功', ['url' => $value['url']]);
         }
 
@@ -1619,7 +2054,6 @@ class Other extends QfShop
             'url' => $value['url'],
             'code' => $code,
             'expired_type' => 2,
-            'ad_fid' => '', //分享时带上这个文件
         );
 
         $transfer = new \netdisk\Transfer();
@@ -1668,7 +2102,8 @@ class Other extends QfShop
         $abc = $this->model->where($map)->select();
 
 
-        $this->model->where($map)->chunk(100, function ($order) {
+        $transfer = new \netdisk\Transfer();
+        $this->model->where($map)->chunk(100, function ($order) use ($transfer) {
             foreach ($order as $value) {
                 $deles = $value->toArray();
 
@@ -1678,8 +2113,7 @@ class Other extends QfShop
                 $filelist = (is_string($fid) && ($decodedFid = json_decode($fid, true)) && is_array($decodedFid)) ? $decodedFid : (array)$fid;
 
                 $this->model->where('fid', $deles['fid'])->delete();
-                $transfer = new \netdisk\Transfer();
-                $transfer->deletepdirFid($deles['is_type'], $filelist);
+                $transfer->deletepdirFid($filelist);
             }
         });
 
@@ -1687,14 +2121,17 @@ class Other extends QfShop
     }
 
     /**
-     * 检查对应网盘账号是否已配置
-     * 委托给全局函数 hasPanAccount()，逻辑统一维护在 common.php
-     * @param int $isType 网盘类型 0夸克 1阿里 2百度 3UC 4迅雷 10光鸭
+     * 检查对应网盘账号是否已配置（查 pan-backend 账户列表）
+     * @param int $isType 网盘类型 0夸克 1阿里 2百度 3UC 4迅雷 5:123 6:115 10:光雅
      * @return bool
      */
     private function hasPanAccount($isType)
     {
-        return \hasPanAccount($isType);
+        $driveType = \netdisk\Transfer::DRIVE_TYPE_MAP[intval($isType)] ?? '';
+        if ($driveType === '') {
+            return false;
+        }
+        return PanBackendService::firstAccount($driveType) !== null;
     }
 
     /**

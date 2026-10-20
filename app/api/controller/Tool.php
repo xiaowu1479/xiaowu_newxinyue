@@ -245,7 +245,7 @@ class Tool extends QfShop
         $baseMap = [];
         $baseMap[] = ['status', '=', 1];
         $baseMap[] = ['is_delete', '=', 0];
-        $baseMap[] = ['is_time', 'in', [0, 2]];
+        $baseMap[] = ['is_time', '=', 0];
         
         // 按分类筛选
         if (!empty($channel) && isset($nameToId[$channel])) {
@@ -255,7 +255,7 @@ class Tool extends QfShop
         // 先查询指定标识的资源
         $topMap = array_merge($baseMap, [['is_top', '=', $is_top]]);
         $topData = $SourceModel->where($topMap)
-            ->field('source_id, title, vod_pic as src, page_views, update_time, create_time, source_category_id, url, is_type, description, vod_content, is_time')
+            ->field('source_id, title, vod_pic as src, page_views, update_time, create_time, source_category_id, url, is_type, description, vod_content')
             ->order('update_time', 'desc')
             ->order('source_id', 'desc')
             ->select()
@@ -269,7 +269,7 @@ class Tool extends QfShop
                 $fillMap[] = ['source_id', 'not in', $existIds];
             }
             $fillData = $SourceModel->where($fillMap)
-                ->field('source_id, title, vod_pic as src, page_views, update_time, create_time, source_category_id, url, is_type, description, vod_content, is_time')
+                ->field('source_id, title, vod_pic as src, page_views, update_time, create_time, source_category_id, url, is_type, description, vod_content')
                 ->order('update_time', 'desc')
                 ->order('source_id', 'desc')
                 ->limit($page_size - count($topData))
@@ -280,10 +280,8 @@ class Tool extends QfShop
 
         $formattedData = [];
         foreach ($topData as $key => $item) {
+            // 原样输出：封面可能来自内网对象存储（如 PanBot 签名直链 http://192.168.x.x:9000），强制转 https 会因无证书加载失败
             $src = $item['src'] ?? '';
-            if ($src && strpos($src, 'http://') === 0) {
-                $src = 'https://' . substr($src, 7);
-            }
             $catName = $idToName[$item['source_category_id']] ?? '';
             // 更新时间优先 update_time，为 0 则回退到 create_time
             $rawTime = !empty($item['update_time']) && $item['update_time'] != '0' ? $item['update_time'] : $item['create_time'];
@@ -295,8 +293,7 @@ class Tool extends QfShop
                 'id' => $item['source_id'],
                 'title' => $item['title'],
                 'src' => $src,
-                'url' => (!empty($item['is_time']) && $item['is_time'] == 2 && !empty($item['url']) && strpos($item['url'], 'http') === 0 && hasPanAccount(intval($item['is_type'] ?? 0)))
-                    ? encryptObject($item['url']) : ($item['url'] ?? ''),
+                'url' => $item['url'] ?? '',
                 'ranking' => $key + 1,
                 'hot_score' => $item['page_views'] ?? 0,
                 'year' => substr($item['create_time'], 0, 4),

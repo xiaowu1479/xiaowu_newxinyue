@@ -490,7 +490,7 @@
                     currentEventSource = new EventSource(searchUrl);
                     // 初始化搜索结果数组，如果有本地资源则先加入
                     searchResults = hasLocalData ? [...localSearchResults] : [];
-                    var maxResults = 60;
+                    var maxResults = 20;
                     var isClosed = false;
                     var localCount = searchResults.length;
                     
@@ -773,7 +773,7 @@
                     currentEventSource = new EventSource(searchUrl);
                     // 初始化搜索结果数组，如果有本地资源则先加入
                     searchResults = hasLocalData ? [...localSearchResults] : [];
-                    var maxResults = 60;
+                    var maxResults = 20;
                     var isClosed = false;
                     var localCount = searchResults.length;
 

@@ -105,14 +105,12 @@
                 <el-form-item class="compact-btns">
                     <el-button type="primary" icon="el-icon-search" size="small" @click="getList_search">查询</el-button>
                     <el-button icon="el-icon-refresh-left" size="small" @click="resetSearch" plain>重置</el-button>
-                    <el-button type="danger" icon="el-icon-delete" size="small" @click="postMultDelete" plain>删除</el-button>
                 </el-form-item>
             </el-form>
         </div>
 
         <div class="list-container">
-            <el-table :data="dataList.data" @selection-change="changeSelection" v-loading="loading" stripe>
-                <el-table-column type="selection" width="50" align="center"></el-table-column>
+            <el-table :data="dataList.data" v-loading="loading" stripe>
                 <el-table-column prop="id" label="ID" align="center" width="100">
                     <template slot-scope="scope">
                         <span class="id-cell">{{scope.row.id}}</span>
@@ -171,7 +169,6 @@
                 return {
                     loading: true,
                     dataList: [],
-                    selectList: [],
                     stats: {
                         today: 0,
                         week: 0,
@@ -208,44 +205,6 @@
                     this.form.page = 1;
                     this.getList();
                     this.getStats();
-                },
-                changeSelection(list) {
-                    var that = this;
-                    that.selectList = [];
-                    for (var index in list) {
-                        that.selectList.push(list[index].id);
-                    }
-                },
-                postMultDelete() {
-                    var that = this;
-                    if (that.selectList.length == 0) {
-                        that.$message.error('未选择任何记录！');
-                        return;
-                    }
-                    this.$confirm('即将删除选中的 ' + that.selectList.length + ' 条搜索记录, 是否确认?', '批量删除', {
-                        confirmButtonText: '删除',
-                        cancelButtonText: '取消',
-                        type: 'warning'
-                    }).then(() => {
-                        axios.post('/admin/feedback/delete', Object.assign({}, PostBase, {
-                            id: that.selectList.join(",")
-                        }))
-                            .then(function (response) {
-                                if (response.data.code == CODE_SUCCESS) {
-                                    that.$message.success(response.data.message);
-                                    that.selectList = [];
-                                    that.getList();
-                                    that.getStats();
-                                } else {
-                                    that.$message.error(response.data.message);
-                                }
-                            })
-                            .catch(function (error) {
-                                that.$message.error('服务器内部错误');
-                                console.log(error);
-                            });
-                    }).catch(() => {
-                    });
                 },
                 resetSearch() {
                     this.form.content = '';

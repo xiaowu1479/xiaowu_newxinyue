@@ -1,4 +1,4 @@
-{php}$navMenuItems = ',' . ($config['nav_menu_items'] ?? 'home,ranking,top250,game,category,contact') . ',';{/php}
+{php}$navMenuItems = ',' . ($config['nav_menu_items'] ?? 'home,ranking,top250,game,category,novel,contact') . ',';{/php}
 <div class="top-nav">
     <div class="top-nav-box">
         <a href="/" class="top-nav-logo">
@@ -32,6 +32,12 @@
             {if condition="strpos($navMenuItems, ',category,') !== false"}
             <a href="/category" class="nav-menu-item">最近更新</a>
             {/if}
+            {if condition="strpos($navMenuItems, ',novel,') !== false"}
+            <a href="/novel" class="nav-menu-item nav-menu-item-novel">小说榜</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',baidu_novel,') !== false"}
+            <a href="/baidu_novel" class="nav-menu-item nav-menu-item-novel">百度小说</a>
+            {/if}
             {if condition="strpos($navMenuItems, ',contact,') !== false"}
             {notempty name="config.qcode"}
             <div class="nav-menu-item" @click="qcodeVisible = true">联系我们</div>
@@ -49,12 +55,12 @@
                     <path d="m21 21-4.35-4.35"></path>
                 </svg>
             </span>
-            <input type="text" v-model="keyword" placeholder="搜索：片名 / 关键词 / 主演" @keyup.enter="searchBtn">
-            <button class="search-btn" @click="searchBtn">搜索</button>
+            <input type="text" v-model="keyword" :placeholder="(isNovelPage || isBaiduNovelPage) ? '搜索：书名 / 作者' : '搜索：片名 / 书名 / 关键词'" @keyup.enter="navbarSearch">
+            <button class="search-btn" @click="navbarSearch">搜索</button>
         </div>
 
         <div class="top-nav-actions">
-            <div class="nav-search-icon-btn" @click="openSearchDialog">
+            <div class="nav-search-icon-btn" @click="navbarSearch">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="11" cy="11" r="8"></circle>
                     <path d="m21 21-4.35-4.35"></path>
@@ -121,6 +127,12 @@
             {if condition="strpos($navMenuItems, ',category,') !== false"}
             <a href="/category" class="nav-drawer-item">最近更新</a>
             {/if}
+            {if condition="strpos($navMenuItems, ',novel,') !== false"}
+            <a href="/novel" class="nav-drawer-item nav-drawer-item-novel">小说</a>
+            {/if}
+            {if condition="strpos($navMenuItems, ',baidu_novel,') !== false"}
+            <a href="/baidu_novel" class="nav-drawer-item nav-drawer-item-novel">百度小说</a>
+            {/if}
             {if condition="strpos($navMenuItems, ',contact,') !== false"}
             {notempty name="config.qcode"}
             <div class="nav-drawer-item" @click="qcodeVisible = true; drawer = false">联系我们</div>
@@ -151,7 +163,7 @@
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="m21 21-4.35-4.35"></path>
             </svg>
-            <input class="search-dialog-searchbar-input" v-model="keyword" @keyup.enter="onDialogKeywordEnter" placeholder="输入片名、关键词或主演...">
+            <input class="search-dialog-searchbar-input" v-model="keyword" @keyup.enter="onDialogKeywordEnter" placeholder="输入片名、书名、关键词...">
             <button type="button" class="search-dialog-searchbar-btn" v-show="searchDialogStage === 'results'" @click="onDialogKeywordEnter">搜索</button>
         </div>
         <div v-if="searchDialogStage === 'select'" class="search-pan-select">
@@ -162,9 +174,13 @@
                     <span class="search-pan-chip-name">{$panName}</span>
                 </button>
                 {/foreach}
+                <!-- 小说线路（is_type=11）：api_list 中 type=novel 线路固定存在，$panTypeMap 不含 11（板块来源标签等场景维持剔除），仅搜索线路区单独补上 -->
+                <button type="button" class="search-pan-chip" :class="{active: searchSelectedPanType.includes('11')}" data-type="11" @click="selectPanAndSearch('11')">
+                    <span class="search-pan-chip-name">小说</span>
+                </button>
             </div>
             <div class="search-pan-actions" v-if="typeof startMultiSearch === 'function'">
-                <button type="button" class="search-pan-action-btn" @click="selectAllPanTypes(<?php echo htmlspecialchars(json_encode(array_map('strval', array_keys($panTypeMap ?? [])), JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)" :disabled="searchSelectedPanType.length === <?php echo count($panTypeMap ?? []); ?>">全选</button>
+                <button type="button" class="search-pan-action-btn" @click="selectAllPanTypes(<?php echo htmlspecialchars(json_encode(array_merge(array_map('strval', array_keys($panTypeMap ?? [])), ['11']), JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)" :disabled="searchSelectedPanType.length === <?php echo count($panTypeMap ?? []) + 1; ?>">全选</button>
                 <button type="button" class="search-pan-action-btn" @click="clearPanTypes" :disabled="searchSelectedPanType.length === 0">清空</button>
                 <button type="button" class="search-pan-action-btn primary" :disabled="searchSelectedPanType.length === 0" @click="startMultiSearch">开始搜索</button>
             </div>
@@ -176,11 +192,12 @@
                         <span class="search-result-count" id="searchResultCount"></span>
                     </div>
                 </div>
-                <span class="search-dialog-back" onclick="window.__checkSearchLinks && window.__checkSearchLinks()" {if condition="$config.is_quan_zc == 1"}style="display:none;"{/if}>
-                    <i class="iconfont icon-qiehuan"></i> 资源检测
+                <span class="search-dialog-back" @click="backToSelectPanType">
+                    <i class="iconfont icon-qiehuan"></i> 切换线路
                 </span>
             </div>
             <div v-if="availableResultTabs && availableResultTabs.length > 1" class="search-result-tabs">
+                <button type="button" class="search-result-tab" :class="{active: !resultFilterPanType}" @click="setResultFilterPanType(null)">全部</button>
                 <button type="button" class="search-result-tab" v-for="tab in availableResultTabs" :key="tab.id" :class="{active: resultFilterPanType === tab.id}" @click="setResultFilterPanType(tab.id)">{{tab.name}} ({{tab.count}})</button>
             </div>
             <div id="searchResultContent"></div>
@@ -216,7 +233,7 @@
                 <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
                 <div class="tip-text">打开迅雷APP扫码或点击下方按钮下载</div>
                 <div class="dialog-actions">
-                    <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                    <button @click="switchPanFromResource()" class="btn-primary">切换网盘</button>
                     <button @click="downloadWithThunder(dialogItem.showUrl, dialogItem.title)" class="btn-secondary">迅雷下载</button>
                     <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
                 </div>
@@ -231,7 +248,7 @@
                     </div>
                     <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
                     <div class="dialog-actions">
-                        <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                        <button @click="switchPanFromResource()" class="btn-primary">切换网盘</button>
                         <a :href="dialogItem.showUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary">打开链接</a>
                         <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
                     </div>
@@ -244,7 +261,7 @@
                         </div>
                         <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
                         <div class="dialog-actions">
-                            <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                            <button @click="switchPanFromResource()" class="btn-primary">切换网盘</button>
                             <a :href="dialogItem.showUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary">打开链接</a>
                             <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
                         </div>
@@ -275,7 +292,7 @@
                         </div>
                         <div class="expire-tip" style="color: #ff6b6b; font-size: 13px; margin-top: 8px; margin-bottom: 12px; text-align: center; font-weight: 500;">⏰ 资源10分钟失效，请尽快保存！</div>
                         <div class="dialog-actions">
-                            <button @click="copyToClipboard(dialogItem.showUrl)" class="btn-primary">复制链接</button>
+                            <button @click="switchPanFromResource()" class="btn-primary">切换网盘</button>
                             <a :href="dialogItem.showUrl" target="_blank" rel="noopener noreferrer" class="btn-secondary">打开链接</a>
                             <button @click="dialogUrl = false" class="btn-secondary">关闭</button>
                         </div>

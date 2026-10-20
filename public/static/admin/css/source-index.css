@@ -310,55 +310,6 @@ body {
     background: transparent;
 }
 
-/* ===== 导入弹窗左右布局 ===== */
-.dialog-import .el-dialog__body {
-    overflow: hidden;
-}
-.import-layout {
-    display: flex;
-    gap: 20px;
-    align-items: stretch;
-}
-.import-left {
-    flex: 0 0 40%;
-    min-width: 0;
-}
-.import-right {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid #ebeef5;
-    padding-left: 20px;
-    overflow: hidden;
-}
-.import-right-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #303133;
-}
-.import-right-count {
-    font-size: 12px;
-    color: #909399;
-    font-weight: normal;
-}
-.import-text-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 8px;
-}
-.import-text-actions .upload-tip {
-    margin-top: 0;
-}
-.import-indent .el-form-item__content {
-    margin-left: 16px !important;
-}
-
 /* ===== 添加/修改资源弹窗排版 ===== */
 .form-top {
     display: flex;
@@ -676,6 +627,58 @@ body {
     border-color: #409eff;
     color: #409eff;
     background: #ecf5ff;
+}
+
+/* 订阅资源按钮 - 绿色突出 */
+.subscribe-btn.el-button.is-plain,
+.subscribe-btn.el-button.is-plain:hover,
+.subscribe-btn.el-button.is-plain:focus {
+    border-color: #67c23a;
+    background: #f0f9eb;
+    color: #67c23a;
+}
+.subscribe-btn.el-button.is-plain:hover,
+.subscribe-btn.el-button.is-plain:focus {
+    background: #67c23a;
+    border-color: #67c23a;
+    color: #fff;
+}
+
+/* panbot同步按钮 - 橙色突出 */
+.panbot-btn.el-button.is-plain,
+.panbot-btn.el-button.is-plain:hover,
+.panbot-btn.el-button.is-plain:focus {
+    border-color: #e6a23c;
+    background: #fdf6ec;
+    color: #e6a23c;
+}
+.panbot-btn.el-button.is-plain:hover,
+.panbot-btn.el-button.is-plain:focus {
+    background: #e6a23c;
+    border-color: #e6a23c;
+    color: #fff;
+}
+
+/* panbot 同步统计卡片 */
+#app .panbot-stat-card {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 14px;
+    height: 100%;
+    box-sizing: border-box;
+}
+#app .panbot-stat-label {
+    color: #64748b;
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+#app .panbot-stat-value {
+    color: #1e293b;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    word-break: break-all;
 }
 
 /* ===== 加载动画 ===== */
@@ -1301,3 +1304,12 @@ body {
 .kpi-value { font-size: 26px; font-weight: 700; color: #1e293b; line-height: 1.2; }
 .dialog-add-source, .dialog-edit-source, .dialog-category, .dialog-cat-form { border-radius: 6px !important; overflow: hidden; }
 .dialog-category .el-dialog__body { padding: 20px 28px !important; }
+
+/* ==================== 资源订阅操作列：主按钮 + 更多下拉 ==================== */
+#app .subscribe-ops { display: inline-flex; align-items: center; gap: 8px; }
+#app .subscribe-more-link { font-size: 13px; color: #409EFF; cursor: pointer; display: inline-flex; align-items: center; padding: 4px 2px; }
+#app .subscribe-more-link:hover { color: #66b1ff; }
+#app .subscribe-more-link .el-icon--right { margin-left: 0; }
+/* el-dropdown-menu 默认 popper 渲染在 body 下，不在 #app 内，菜单项样式不带 #app 前缀 */
+.el-dropdown-menu .subscribe-danger-item { color: #F56C6C; }
+.el-dropdown-menu .subscribe-danger-item:hover { color: #F56C6C; background: #fef0f0; }

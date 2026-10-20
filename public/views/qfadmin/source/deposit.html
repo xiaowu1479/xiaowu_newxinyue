@@ -4,1019 +4,613 @@
 <head>
     <title>{$node.node_title}</title>
     <style>
-        textarea {
-            height: 300px;
-        }
+        /* 账户图标 / 驱动卡片网格 */
+        .pan-icon-img { width: 20px; height: 20px; border-radius: 4px; margin-right: 6px; vertical-align: middle; object-fit: contain; }
+        .pan-drive-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pan-drive-card { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid #e4e7ed; border-radius: 6px; cursor: pointer; transition: all .2s ease; }
+        .pan-drive-card:hover { border-color: #6366f1; }
+        .pan-drive-card.active { border-color: #6366f1; background: #eef2ff; }
+        .pan-drive-card .pan-icon-img { width: 18px; height: 18px; }
+        .pan-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 6px; vertical-align: -2px; }
+        .pan-mono { font-family: Consolas, Monaco, monospace; font-size: 12px; color: #606266; }
     </style>
     {include file="common/header"/}
-    <el-card class="box-card" shadow="never">
-        <el-tabs v-model="activeName">
-            <el-tab-pane label="夸克网盘" name="0">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>夸克网盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="form">
-                            <el-form-item label="设置cookie">
-                                <el-input style="width: 100%;" v-model="form.quark_cookie" placeholder="请输入">
-                                    <el-button slot="prepend" @click="getFile(0)">账号检测</el-button>
-                                </el-input>
-                                <span class="f_tips">cookie修改后，请保存后再选择转存目录和检测</span>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%" v-model="form.quark_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.quark_file" :props="quark_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%" v-model="form.quark_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.quark_file_time" :props="quark_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="onSubmit">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                    </div>
-                </el-card>
-            </el-tab-pane>
-            <el-tab-pane label="阿里云盘" name="1">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>阿里云盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="form">
-                            <el-form-item label="设置Token">
-                                <el-input style="width: 100%;" v-model="form.Authorization" placeholder="请输入">
-                                    <el-button slot="prepend" @click="getFile(1)">账号检测</el-button>
-                                </el-input>
-                                <span class="f_tips">token修改后，请保存后再选择转存目录和检测</span>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%" v-model="form.ali_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.ali_file" :props="ali_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%" v-model="form.ali_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.ali_file_time" :props="ali_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="onSubmit">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                        <p>Tips：转存目录不能为空，为空将无法转存; <font color=orangered>阿里网盘禁止香港及海外服务器调用分享接口</font>
-                        </p>
-                    </div>
-                </el-card>
-            </el-tab-pane>
-            <el-tab-pane label="百度网盘" name="2">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>百度网盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="form">
-                            <el-form-item label="设置cookie">
-                                <el-input style="width: 100%;" v-model="form.baidu_cookie" placeholder="请输入">
-                                    <el-button slot="prepend" @click="getFile(2)">账号检测</el-button>
-                                </el-input>
-                                <span class="f_tips">cookie修改后，请保存后再选择转存目录和检测</span>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%;" v-model="form.baidu_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.baidu_file" :props="baidu_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%;" v-model="form.baidu_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.baidu_file_time" :props="baidu_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="onSubmit">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                    </div>
-                </el-card>
-            </el-tab-pane>
-            <el-tab-pane label="UC网盘" name="3">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>UC网盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="form">
-                            <el-form-item label="设置cookie">
-                                <el-input style="width: 100%;" v-model="form.uc_cookie" placeholder="请输入">
-                                    <el-button slot="prepend" @click="getFile(3)">账号检测</el-button>
-                                </el-input>
-                                <span class="f_tips">cookie修改后，请保存后再选择转存目录和检测</span>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%" v-model="form.uc_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.uc_file" :props="uc_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%" v-model="form.uc_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.uc_file_time" :props="uc_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="onSubmit">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                    </div>
-                </el-card>
-            </el-tab-pane>
-            <el-tab-pane label="迅雷云盘" name="4">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>迅雷云盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="xunleiForm">
-                            <el-form-item label="扫码登录">
-                                <el-button type="success" @click="xunleiShowQrcode" :loading="xunleiQrcodeLoading">扫码登录迅雷云盘</el-button>
-                                <span class="f_tips" v-if="!xunleiHasAuth">尚未登录，请扫码获取凭证</span>
-                                <span class="f_tips" style="color:#67C23A;" v-else>已登录</span>
-                            </el-form-item>
-                            <el-form-item label="OAuth凭证">
-                                <el-input style="width: 100%;" v-model="xunleiForm.cookie" type="textarea" :rows="3" placeholder='扫码登录自动填入，或手动输入JSON格式凭证'>
-                                </el-input>
-                                <div style="margin-top:4px;">
-                                    <el-button size="mini" @click="xunleiCheckAuth">验证凭证</el-button>
-                                    <el-button size="mini" type="danger" @click="xunleiClearAuth" v-if="xunleiHasAuth || xunleiForm.cookie">清空凭证</el-button>
-                                    <span class="f_tips" style="margin-left:4px;">凭证修改后请点击保存；验证凭证可检测登录状态</span>
-                                </div>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%" v-model="xunleiForm.xunlei_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="xunleiForm.xunlei_file" :props="xunlei_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%" v-model="xunleiForm.xunlei_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="xunleiForm.xunlei_file_time" :props="xunlei_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="xunleiSaveConfig">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                    </div>
-                </el-card>
-            </el-tab-pane>
-            <el-tab-pane label="天翼网盘" name="7" v-if="false">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>天翼网盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="form">
-                            <el-form-item label="设置cookie">
-                                <el-input style="width: 100%;" v-model="form.tianyi_cookie" placeholder="请输入">
-                                    <el-button slot="prepend" @click="getFile(7)">账号检测</el-button>
-                                </el-input>
-                                <span class="f_tips">cookie修改后，请保存后再选择转存目录和检测</span>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%" v-model="form.tianyi_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.tianyi_file" :props="tianyi_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%" v-model="form.tianyi_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.tianyi_file_time" :props="tianyi_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="onSubmit">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                    </div>
-                </el-card>
-            </el-tab-pane>
-            <el-tab-pane label="移动网盘" name="8" v-if="false">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>移动网盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="form">
-                            <el-form-item label="设置cookie">
-                                <el-input style="width: 100%;" v-model="form.yidong_cookie" placeholder="请输入">
-                                    <el-button slot="prepend" @click="getFile(8)">账号检测</el-button>
-                                </el-input>
-                                <span class="f_tips">cookie修改后，请保存后再选择转存目录和检测</span>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%" v-model="form.yidong_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.yidong_file" :props="yidong_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%" v-model="form.yidong_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="form.yidong_file_time" :props="yidong_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="onSubmit">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                    </div>
-                </el-card>
-            </el-tab-pane>
-            <el-tab-pane label="光鸭网盘" name="10">
-                <el-card class="box-card">
-                    <div slot="header" class="clearfix">
-                        <span>光鸭网盘</span>
-                    </div>
-                    <div style="font-size:14px;color:#666;">
-                        <el-form :model="guangyaForm">
-                            <el-form-item label="扫码登录">
-                                <el-button type="success" @click="guangyaShowQrcode" :loading="guangyaQrcodeLoading">扫码登录光鸭网盘</el-button>
-                                <span class="f_tips" v-if="!guangyaHasAuth">尚未登录，请扫码获取凭证</span>
-                                <span class="f_tips" style="color:#67C23A;" v-else>已登录</span>
-                            </el-form-item>
-                            <el-form-item label="OAuth凭证">
-                                <el-input style="width: 100%;" v-model="guangyaForm.cookie" type="textarea" :rows="3" placeholder='扫码登录自动填入，或手动输入JSON格式凭证'>
-                                </el-input>
-                                <div style="margin-top:4px;">
-                                    <el-button size="mini" @click="guangyaCheckAuth">验证凭证</el-button>
-                                    <el-button size="mini" type="danger" @click="guangyaClearAuth" v-if="guangyaHasAuth || guangyaForm.cookie">清空凭证</el-button>
-                                    <span class="f_tips" style="margin-left:4px;">凭证修改后请点击保存；验证凭证可检测登录状态</span>
-                                </div>
-                            </el-form-item>
-                            <el-form-item label="默认转存目录">
-                                <el-input style="width: 100%" v-model="guangyaForm.guangya_file" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="guangyaForm.guangya_file" :props="guangya_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item label="临时资源目录">
-                                <el-input style="width: 100%" v-model="guangyaForm.guangya_file_time" placeholder="请输入或选择">
-                                    <div slot="prepend" style="position: relative;">
-                                        <p>请选择</p>
-                                        <el-cascader style="opacity: 0; height: 38px; position: absolute;inset: 0;"
-                                            v-model="guangyaForm.guangya_file_time" :props="guangya_props"></el-cascader>
-                                    </div>
-                                </el-input>
-                            </el-form-item>
-                            <el-form-item>
-                                <el-button type="primary" @click="guangyaSaveConfig">保存</el-button>
-                            </el-form-item>
-                        </el-form>
-                    </div>
-                </el-card>
-                <el-dialog title="光鸭网盘 - 扫码登录" :visible.sync="guangyaQrcodeVisible" width="360px" center @close="guangyaStopPoll">
-                    <div style="text-align:center;">
-                        <div v-if="guangyaQrcodeLoading" style="padding:40px 0;">
-                            <i class="el-icon-loading" style="font-size:32px;"></i>
-                            <p style="margin-top:10px;">正在获取二维码...</p>
-                        </div>
-                        <div v-else-if="guangyaQrcodeUrl">
-                            <img :src="guangyaQrcodeUrl" style="width:220px;height:220px;border:1px solid #eee;padding:10px;" />
-                            <p style="margin-top:12px;font-size:14px;color:#666;">请使用光鸭网盘APP扫描二维码</p>
-                            <p style="font-size:12px;color:#999;">{{ guangyaQrcodeStatus === 'waiting' ? '等待扫码...' : guangyaQrcodeStatus === 'success' ? '登录成功！' : '' }}</p>
-                        </div>
-                        <div v-else style="padding:40px 0;color:#F56C6C;">
-                            <p>获取二维码失败，请重试</p>
-                        </div>
-                    </div>
-                    <span slot="footer" class="dialog-footer">
-                        <el-button @click="guangyaStopPoll" size="small">取消</el-button>
-                        <el-button type="primary" @click="guangyaShowQrcode" size="small">刷新二维码</el-button>
-                    </span>
-                </el-dialog>
-            </el-tab-pane>
-            <!-- 迅雷云盘扫码登录弹窗 -->
-            <el-dialog title="迅雷云盘 - 扫码登录" :visible.sync="xunleiQrcodeVisible" width="360px" center @close="xunleiStopPoll">
-                <div style="text-align:center;">
-                    <div v-if="xunleiQrcodeLoading" style="padding:40px 0;">
-                        <i class="el-icon-loading" style="font-size:32px;"></i>
-                        <p style="margin-top:10px;">正在获取二维码...</p>
-                    </div>
-                    <div v-else-if="xunleiQrcodeUrl">
-                        <img :src="xunleiQrcodeUrl" style="width:220px;height:220px;border:1px solid #eee;padding:10px;" />
-                        <p style="margin-top:12px;font-size:14px;color:#666;">请使用手机迅雷APP扫描二维码</p>
-                        <p style="font-size:12px;color:#999;">
-                            {{ xunleiQrcodeStatus === 'waiting' ? '等待扫码...' : xunleiQrcodeStatus === 'success' ? '登录成功！' : xunleiQrcodeStatus === 'expired' ? '二维码已过期' : '' }}
-                        </p>
-                    </div>
-                    <div v-else style="padding:40px 0;color:#F56C6C;">
-                        <p>获取二维码失败，请重试</p>
-                        <p style="font-size:12px;margin-top:8px;">{{ xunleiQrcodeError }}</p>
-                    </div>
-                </div>
-                <span slot="footer" class="dialog-footer">
-                    <el-button @click="xunleiQrcodeVisible=false" size="small">关闭</el-button>
-                    <el-button type="primary" @click="xunleiShowQrcode" size="small" :disabled="xunleiQrcodeLoading">刷新二维码</el-button>
-                </span>
-            </el-dialog>
-        </el-tabs>
+    <el-card class="box-card" shadow="never" v-loading="loading">
+        <!-- 网盘服务状态条 -->
+        <el-alert v-if="service && !service.connected" type="error" :closable="false" style="margin-bottom:14px;"
+            :title="'网盘服务连接失败：' + (service.error || '未知错误')" :description="'服务地址：' + (service.base_url || '-')"></el-alert>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px;font-size:13px;color:#606266;margin-bottom:12px;">
+            <span>网盘服务：</span>
+            <el-tag v-if="service && service.connected" type="success" size="small">连接正常</el-tag>
+            <el-tag v-else type="danger" size="small">连接失败</el-tag>
+            <span>{{ (service && service.base_url) || '-' }}</span>
+            <span style="color:#909399;font-size:12px;">服务地址与令牌均在下方维护</span>
+            <div style="margin-left:auto;">
+                <el-button icon="el-icon-refresh" size="small" @click="loadConfig" plain>刷新</el-button>
+                <el-button icon="el-icon-plus" type="primary" size="small" @click="openAdd">添加账户</el-button>
+            </div>
+        </div>
+
+        <!-- 网盘服务连接（服务地址 + 服务令牌一体保存，均必填） -->
+        <div style="padding:12px;border:1px solid #ebeef5;border-radius:6px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px;color:#606266;">
+                <span style="font-weight:600;color:#303133;">服务地址</span>
+                <el-input v-model="baseUrlForm.baseUrl" size="mini" clearable class="pan-mono" style="width:330px;"
+                    placeholder="http(s):// 网盘服务地址，必填"></el-input>
+                <span style="font-weight:600;color:#303133;margin-left:6px;">服务令牌</span>
+                <el-input v-model="baseUrlForm.token" size="mini" show-password clearable class="pan-mono" style="width:330px;"
+                    placeholder="pan-backend 签发的 API token，必填"></el-input>
+                <el-button size="mini" type="primary" :loading="baseUrlSaving" @click="saveBaseUrl">保存并测试</el-button>
+            </div>
+            <div style="margin-top:8px;font-size:12px;color:#c0c4cc;">
+                地址与令牌均从 pan-backend 管理页获取（签发 API token 后粘贴到此处），填什么用什么；
+                令牌失效（重签/过期）时此处同步更新即可。本站所有网盘调用均携带此令牌。
+                <el-button v-if="baseUrlForm.token" type="text" size="mini" icon="el-icon-document-copy" @click="copyToken">复制令牌</el-button>
+            </div>
+        </div>
+
+        <!-- 账户列表 -->
+        <el-table :data="accounts" border size="small">
+            <el-table-column label="网盘" width="150">
+                <template slot-scope="scope">
+                    <img v-if="scope.row.icon" :src="scope.row.icon" class="pan-icon-img" alt="">
+                    <span :style="{ background: driveInfo(scope.row.account).color }" v-else
+                        class="pan-dot" ></span>
+                    <span>{{ driveInfo(scope.row.account).name }}</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="账户标识" prop="account" width="190">
+                <template slot-scope="scope"><span class="pan-mono">{{ scope.row.account }}</span></template>
+            </el-table-column>
+            <el-table-column label="昵称" prop="nickname" min-width="120">
+                <template slot-scope="scope">{{ scope.row.nickname || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+                <template slot-scope="scope">
+                    <el-tag v-if="!scope.row.disabled" type="success" size="mini">正常</el-tag>
+                    <el-tag v-else type="info" size="mini">已停用</el-tag>
+                </template>
+            </el-table-column>
+            <el-table-column label="保存目录" min-width="150">
+                <template slot-scope="scope">
+                    <span v-if="dirs[scope.row.account] && dirs[scope.row.account].save" class="pan-mono">{{ dirs[scope.row.account].save }}</span>
+                    <span v-else style="color:#c0c4cc;">未设置</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="临时目录" min-width="150">
+                <template slot-scope="scope">
+                    <span v-if="dirs[scope.row.account] && dirs[scope.row.account].temp" class="pan-mono">{{ dirs[scope.row.account].temp }}</span>
+                    <span v-else style="color:#c0c4cc;">未设置</span>
+                </template>
+            </el-table-column>
+            <el-table-column label="操作" width="170" fixed="right">
+                <template slot-scope="scope">
+                    <el-button type="text" size="small" @click="openDirs(scope.row)">目录设置</el-button>
+                    <el-button type="text" size="small" style="color:#f56c6c;" @click="removeAccount(scope.row)">删除</el-button>
+                </template>
+            </el-table-column>
+            <div slot="empty">暂无网盘账户，点击右上角「添加账户」绑定</div>
+        </el-table>
+        <div style="color:#909399;font-size:12px;margin-top:10px;">
+            账户凭证由 pan-backend 服务托管，本站不存储任何网盘 cookie/token；全站网盘操作（转存/浏览/删除等）统一经 app\service\PanBackendService 调用网盘服务。
+        </div>
     </el-card>
+
+    <!-- 目录设置弹窗 -->
+    <el-dialog title="目录设置" :visible.sync="dirDialog" :modal-append-to-body='false' append-to-body
+        :close-on-click-modal='false' width="560px">
+        <el-form label-width="100px" size="small">
+            <el-form-item label="账户">
+                <span class="pan-mono">{{ dirForm.account }}</span>
+                <span style="color:#909399;font-size:12px;margin-left:8px;">{{ driveInfo(dirForm.account).name }}</span>
+            </el-form-item>
+            <el-form-item label="保存目录">
+                <el-cascader style="width:100%;" v-model="dirForm.saveDir" :props="dirSaveProps"
+                    placeholder="选择目录（可留空）" clearable filterable></el-cascader>
+                <div style="color:#909399;font-size:12px;">自动转存/上传的目标目录</div>
+            </el-form-item>
+            <el-form-item label="临时目录">
+                <el-cascader style="width:100%;" v-model="dirForm.tempDir" :props="dirTempProps"
+                    placeholder="选择目录（可留空）" clearable filterable></el-cascader>
+                <div style="color:#909399;font-size:12px;">临时资源（待处理/待分享）中转目录</div>
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="dirDialog = false" size="small">取 消</el-button>
+            <el-button type="primary" @click="saveDirs" size="small" :loading="dirSaving">保 存</el-button>
+        </div>
+    </el-dialog>
+
+    <!-- 添加账户弹窗 -->
+    <el-dialog title="添加网盘账户" :visible.sync="addDialog" :modal-append-to-body='false' append-to-body
+        :close-on-click-modal='false' width="640px" @closed="onAddClosed">
+        <el-form label-width="100px" size="small">
+            <el-form-item label="选择网盘">
+                <div class="pan-drive-grid">
+                    <div v-for="d in drivers" :key="d.driveType" class="pan-drive-card"
+                        :class="{ active: selectedDrive === d.driveType }" @click="selectDrive(d)">
+                        <img v-if="d.icon" :src="d.icon" class="pan-icon-img" alt="">
+                        <span>{{ d.driveName || d.driveType }}</span>
+                    </div>
+                    <span v-if="!drivers.length" style="color:#909399;font-size:12px;">驱动列表获取失败</span>
+                </div>
+            </el-form-item>
+
+            <template v-if="selectedDrive">
+                <el-form-item label="登录方式">
+                    <el-radio-group v-model="loginMethod" @change="onLoginMethodChange">
+                        <el-radio v-for="m in currentDriveLoginMethods" :key="m" :label="m">
+                            {{ ({ qrcode: '扫码登录', tv_qrcode: 'TV扫码', cookie: 'Cookie登录', sms: '短信验证码', account: '账密登录' })[m] || m }}
+                        </el-radio>
+                    </el-radio-group>
+                </el-form-item>
+
+                <!-- 扫码 / TV 扫码 -->
+                <el-form-item label="扫码" v-if="loginMethod === 'qrcode' || loginMethod === 'tv_qrcode'">
+                    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;">
+                        <img v-if="qr.imgSrc && !qr.imgError" :src="qr.imgSrc"
+                            style="width:180px;height:180px;border:1px solid #ebeef5;border-radius:6px;padding:6px;background:#fff;"
+                            alt="" @error="qrImgError">
+                        <div v-else-if="qr.imgSrc" style="font-size:12px;color:#909399;word-break:break-all;max-width:280px;">
+                            图片加载失败，请用手机浏览器打开：{{ qr.imgSrc }}
+                        </div>
+                        <div :style="{ color: qr.success ? '#67c23a' : '#909399', 'font-size': '13px' }">{{ qr.status }}</div>
+                        <el-button size="mini" plain @click="qrcodeStart" :disabled="qr.polling">重新生成二维码</el-button>
+                    </div>
+                </el-form-item>
+
+                <!-- Cookie 登录 -->
+                <el-form-item label="Cookie" v-if="loginMethod === 'cookie'">
+                    <el-input type="textarea" v-model="cookie" :rows="4" placeholder="粘贴网盘站点的 Cookie 完整字符串"></el-input>
+                    <el-button type="primary" size="small" style="margin-top:8px;" :loading="loginSubmitting" @click="cookieSubmit">提交登录</el-button>
+                </el-form-item>
+
+                <!-- 短信验证码 -->
+                <template v-if="loginMethod === 'sms'">
+                    <el-form-item label="用户ID">
+                        <el-input v-model="sms.userId" placeholder="网盘用户唯一ID" style="width:280px;"></el-input>
+                    </el-form-item>
+                    <el-form-item label="验证码">
+                        <el-input v-model="sms.code" style="width:180px;"></el-input>
+                        <el-button size="small" style="margin-left:8px;" :loading="sms.sending" @click="smsSend">发送验证码</el-button>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" size="small" :loading="loginSubmitting" @click="smsSubmit">提交登录</el-button>
+                    </el-form-item>
+                </template>
+
+                <!-- 账密等其他方式 -->
+                <el-form-item v-if="loginMethod === 'account'" label="提示">
+                    <span style="color:#909399;font-size:12px;">该网盘的账密登录请在网盘服务后台（{{ (service && service.base_url) || '-' }}）完成</span>
+                </el-form-item>
+
+                <el-form-item v-if="loginMsg" label="结果">
+                    <span :style="{ color: loginMsgOk ? '#67c23a' : '#f56c6c', 'font-size': '13px' }">{{ loginMsg }}</span>
+                </el-form-item>
+            </template>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="addDialog = false" size="small">关 闭</el-button>
+        </div>
+    </el-dialog>
     {include file="common/footer"/}
     <script>
         var app = new Vue({
             el: '#app',
             data() {
                 return {
-                    activeName: '0',
-                    configKeys: ['quark_cookie', 'quark_file', 'quark_file_time', 'baidu_cookie', 'baidu_file', 'baidu_file_time', 'Authorization', 'ali_file', 'ali_file_time', 'uc_cookie', 'uc_file', 'uc_file_time', 'xunlei_cookie', 'xunlei_file', 'xunlei_file_time', 'tianyi_cookie', 'tianyi_file', 'tianyi_file_time', 'yidong_cookie', 'yidong_file', 'yidong_file_time'],
-                    form: {
-                        quark_file: ''
-                    },
-                    guangyaQrcodeVisible: false,
-                    guangyaQrcodeUrl: '',
-                    guangyaQrcodeLoading: false,
-                    guangyaQrcodeStatus: '',
-                    guangyaPollTimer: null,
-                    guangyaHasAuth: false,
-                    guangyaForm: {
-                        cookie: '',
-                        guangya_file: '',
-                        guangya_file_time: ''
-                    },
-                    // 迅雷扫码登录
-                    xunleiQrcodeVisible: false,
-                    xunleiQrcodeUrl: '',
-                    xunleiQrcodeLoading: false,
-                    xunleiQrcodeStatus: '',
-                    xunleiQrcodeError: '',
-                    xunleiPollTimer: null,
-                    xunleiHasAuth: false,
-                    xunleiForm: {
-                        cookie: '',
-                        xunlei_file: '',
-                        xunlei_file_time: ''
-                    },
-                    quark_files: [],
-                    quark_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 0,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        // 只显示文件夹
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.fid,
-                                                label: item.file_name,
-                                                disabled: !item.dir,
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
-                    baidu_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 2,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        // 只显示文件夹
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.path,
-                                                label: item.server_filename,
-                                                disabled: !item.isdir,
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
-                    ali_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 1,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        // 只显示文件夹
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.file_id,
-                                                label: item.name,
-                                                disabled: item.type != 'folder',
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
-                    uc_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 3,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        // 只显示文件夹
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.fid,
-                                                label: item.file_name,
-                                                disabled: !item.dir,
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
-                    xunlei_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 4,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        // 只显示文件夹
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.id,
-                                                label: item.name,
-                                                disabled: item.kind !== 'drive#folder',
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
-                    tianyi_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 7,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        // 只显示文件夹
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.id,
-                                                label: item.fileName,
-                                                disabled: !item.isFolder,
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
-                    yidong_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 8,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.fileId,
-                                                label: item.fileName,
-                                                disabled: !item.isFolder,
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
-                    guangya_props: {
-                        lazy: true,
-                        emitPath: false,
-                        checkStrictly: true,
-                        lazyLoad(node, resolve) {
-                            const { level, value } = node;
-                            let that = this;
-                            axios.post('/admin/source/getFiles', Object.assign({
-                                type: 10,
-                                pdir_fid: value || 0
-                            }, PostBase))
-                                .then(function (res) {
-                                    if (res.data.code == 200) {
-                                        const nodes = (res.data.data || [])
-                                            .map(item => ({
-                                                value: item.fileId,
-                                                label: item.fileName,
-                                                disabled: item.resType != 2,
-                                            }));
-                                        resolve(nodes);
-                                    } else {
-                                        resolve([]);
-                                    }
-                                })
-                                .catch(function (error) {
-                                    console.error(error);
-                                    resolve([]);
-                                });
-                        }
-                    },
+                    loading: false,
+                    service: null,
+                    accounts: [],
+                    accountsError: '',
+                    dirs: {},
+                    // 服务连接配置（地址+令牌一体保存）
+                    baseUrlSaving: false,
+                    baseUrlForm: { baseUrl: '', token: '' },
+                    // 目录设置弹窗
+                    dirDialog: false,
+                    dirSaving: false,
+                    dirForm: { account: '', saveDir: '', tempDir: '' },
+                    dirSaveProps: null,
+                    dirTempProps: null,
+                    // 添加账户弹窗（登录状态机）
+                    addDialog: false,
+                    drivers: [],
+                    selectedDrive: '',
+                    loginMethod: '',
+                    loginMsg: '',
+                    loginMsgOk: false,
+                    loginSubmitting: false,
+                    qr: { imgSrc: '', status: '', meta: {}, polling: false, imgError: false, success: false },
+                    cookie: '',
+                    sms: { userId: '', code: '', sending: false }
                 };
             },
-            created() {
-                this.getData();
-                this.guangyaLoadConfig();
-                this.xunleiLoadConfig();
+            computed: {
+                currentDriveLoginMethods() {
+                    var that = this;
+                    var d = (this.drivers || []).find(function (x) { return x.driveType === that.selectedDrive; });
+                    return d && Array.isArray(d.loginMethods) ? d.loginMethods : [];
+                }
+            },
+            mounted() {
+                this.loadConfig();
+            },
+            beforeDestroy() {
+                this.qrStop();
             },
             methods: {
-                guangyaShowQrcode() {
-                    let that = this;
-                    that.guangyaQrcodeUrl = '';
-                    that.guangyaQrcodeStatus = '';
-                    that.guangyaQrcodeLoading = true;
-                    that.guangyaQrcodeVisible = true;
-                    that.guangyaStopPoll();
-
-                    axios.post('/admin/source/guangyaQrcode', Object.assign({}, PostBase))
+                // ===== 配置加载 =====
+                loadConfig() {
+                    var that = this;
+                    that.loading = true;
+                    axios.post('/admin/pan_manage/getConfig', Object.assign({}, PostBase))
                         .then(function (res) {
-                            that.guangyaQrcodeLoading = false;
-                            if (res.data.code == 200) {
-                                that.guangyaQrcodeUrl = res.data.data.code_url;
-                                that.guangyaQrcodeStatus = 'waiting';
-                                that.guangyaStartPoll(res.data.data.interval || 5);
-                            } else {
-                                that.$message.error(res.data.message || '获取二维码失败');
-                            }
-                        })
-                        .catch(function (err) {
-                            that.guangyaQrcodeLoading = false;
-                            let msg = '网络错误';
-                            if (err.response && err.response.data && err.response.data.message) {
-                                msg = err.response.data.message;
-                            }
-                            that.$message.error(msg);
-                        });
-                },
-                guangyaStartPoll(interval) {
-                    let that = this;
-                    let delay = (interval || 5) * 1000;
-                    that.guangyaPollTimer = setTimeout(function poll() {
-                        axios.post('/admin/source/guangyaQrcodePoll', Object.assign({}, PostBase))
-                            .then(function (res) {
-                                if (res.data.code == 200) {
-                                    let status = res.data.data.status;
-                                    if (status === 'success') {
-                                        that.guangyaQrcodeStatus = 'success';
-                                        that.guangyaForm.cookie = res.data.data.cookie;
-                                        that.guangyaHasAuth = true;
-                                        that.$message.success('光鸭网盘登录成功！');
-                                        setTimeout(function () {
-                                            that.guangyaQrcodeVisible = false;
-                                        }, 1500);
-                                        return;
-                                    }
-                                    that.guangyaPollTimer = setTimeout(poll, delay);
-                                } else {
-                                    that.guangyaQrcodeStatus = '';
-                                    that.$message.error(res.data.message || '登录失败');
-                                }
-                            })
-                            .catch(function (err) {
-                                that.guangyaPollTimer = setTimeout(poll, delay);
-                            });
-                    }, delay);
-                },
-                guangyaStopPoll() {
-                    if (this.guangyaPollTimer) {
-                        clearTimeout(this.guangyaPollTimer);
-                        this.guangyaPollTimer = null;
-                    }
-                },
-                guangyaLoadConfig() {
-                    let that = this;
-                    axios.post('/admin/source/guangyaGetAuth', Object.assign({}, PostBase))
-                        .then(function (res) {
-                            if (res.data.code == 200) {
-                                that.guangyaHasAuth = res.data.data.has_auth || false;
-                                if (res.data.data.cookie) {
-                                    let authData = JSON.parse(res.data.data.cookie);
-                                    that.guangyaForm.cookie = res.data.data.cookie;
-                                    that.guangyaForm.guangya_file = authData.guangya_file || '';
-                                    that.guangyaForm.guangya_file_time = authData.guangya_file_time || '';
-                                }
-                            }
-                        });
-                },
-                guangyaSaveConfig() {
-                    let that = this;
-                    let saveData = {};
-                    try {
-                        if (that.guangyaForm.cookie) {
-                            saveData = JSON.parse(that.guangyaForm.cookie);
-                        }
-                    } catch (e) {
-                        that.$message.error('OAuth凭证JSON格式错误');
-                        return;
-                    }
-                    saveData.guangya_file = that.guangyaForm.guangya_file || '';
-                    saveData.guangya_file_time = that.guangyaForm.guangya_file_time || '';
-
-                    axios.post('/admin/source/guangyaSaveAuth', Object.assign({ cookie: JSON.stringify(saveData) }, PostBase))
-                        .then(function (res) {
-                            if (res.data.code == 200) {
-                                that.$message.success('保存成功');
-                            } else {
-                                that.$message.error(res.data.message || '保存失败');
-                            }
-                        })
-                        .catch(function (err) {
-                            that.$message.error('网络错误');
-                        });
-                },
-                guangyaCheckAuth() {
-                    let that = this;
-                    that.$message.info('正在验证凭证...');
-                    axios.post('/admin/source/guangyaCheckAuth', Object.assign({}, PostBase))
-                        .then(function (res) {
-                            if (res.data.code == 200) {
-                                that.guangyaHasAuth = true;
-                                that.$message.success('凭证有效，登录状态正常');
-                            } else {
-                                that.guangyaHasAuth = false;
-                                that.$message.error(res.data.message || '凭证无效');
-                            }
-                        })
-                        .catch(function (err) {
-                            that.$message.error('网络错误');
-                        });
-                },
-                guangyaClearAuth() {
-                    let that = this;
-                    that.$confirm('确定要清空光鸭网盘凭证吗？清空后需要重新扫码登录。', '清空确认', {
-                        confirmButtonText: '确定清空',
-                        cancelButtonText: '取消',
-                        type: 'warning'
-                    }).then(function () {
-                        axios.post('/admin/source/guangyaClearAuth', Object.assign({}, PostBase))
-                            .then(function (res) {
-                                if (res.data.code == 200) {
-                                    that.guangyaHasAuth = false;
-                                    that.guangyaForm.cookie = '';
-                                    that.$message.success('凭证已清空，请重新扫码登录');
-                                } else {
-                                    that.$message.error(res.data.message || '清空失败');
-                                }
-                            })
-                            .catch(function (err) {
-                                that.$message.error('网络错误');
-                            });
-                    }).catch(function () {});
-                },
-                getData() {
-                    let that = this
-                    axios.post('/admin/conf/getBaseConfig', Object.assign({}, PostBase))
-                        .then(function (response) {
-                            if (response.data.code == 200) {
-                                for (let item of response.data.data) {
-                                    if (that.configKeys.includes(item.conf_key)) {
-                                        that.$set(that.form, item.conf_key, item.conf_value)
-                                    }
-                                }
-                            } else {
-                                that.$message.error(response.data.message);
-                            }
-                        })
-                        .catch(function (error) {
-                            that.$message.error('服务器内部错误');
-                        });
-                },
-                // ── 迅雷扫码登录（PanBot 代理轮询） ──
-                xunleiShowQrcode() {
-                    let that = this;
-                    that.xunleiQrcodeUrl = '';
-                    that.xunleiQrcodeStatus = '';
-                    that.xunleiQrcodeError = '';
-                    that.xunleiQrcodeLoading = true;
-                    that.xunleiQrcodeVisible = true;
-                    that.xunleiStopPoll();
-
-                    axios.post('/admin/source/xunleiQrcode', Object.assign({}, PostBase))
-                        .then(function (res) {
-                            that.xunleiQrcodeLoading = false;
-                            if (res.data.code == 200) {
-                                that.xunleiQrcodeUrl = res.data.data.code_url;
-                                that.xunleiQrcodeStatus = 'waiting';
-                                that.xunleiStartPoll();
-                            } else {
-                                that.xunleiQrcodeError = res.data.message || '获取二维码失败';
-                            }
-                        })
-                        .catch(function (err) {
-                            that.xunleiQrcodeLoading = false;
-                            that.xunleiQrcodeError = '网络错误';
-                            if (err.response && err.response.data && err.response.data.message) {
-                                that.xunleiQrcodeError = err.response.data.message;
-                            }
-                        });
-                },
-                xunleiStartPoll() {
-                    let that = this;
-                    that.xunleiPollTimer = setTimeout(function poll() {
-                        axios.post('/admin/source/xunleiQrcodePoll', Object.assign({}, PostBase))
-                            .then(function (res) {
-                                if (res.data.code == 200) {
-                                    let status = res.data.data.status;
-                                    if (status === 'success') {
-                                        that.xunleiQrcodeStatus = 'success';
-                                        that.xunleiForm.cookie = res.data.data.cookie;
-                                        that.xunleiHasAuth = true;
-                                        that.$message.success('迅雷云盘登录成功！');
-                                        setTimeout(function () {
-                                            that.xunleiQrcodeVisible = false;
-                                        }, 1500);
-                                        return;
-                                    }
-                                    // pending → 继续轮询
-                                    that.xunleiPollTimer = setTimeout(poll, 2000);
-                                } else {
-                                    that.xunleiQrcodeStatus = 'expired';
-                                    that.$message.error(res.data.message || '授权失败');
-                                }
-                            })
-                            .catch(function (err) {
-                                // 网络错误重试
-                                that.xunleiPollTimer = setTimeout(poll, 3000);
-                            });
-                    }, 2000);
-                },
-                xunleiStopPoll() {
-                    if (this.xunleiPollTimer) {
-                        clearTimeout(this.xunleiPollTimer);
-                        this.xunleiPollTimer = null;
-                    }
-                },
-                xunleiLoadConfig() {
-                    let that = this;
-                    axios.post('/admin/source/xunleiGetAuth', Object.assign({}, PostBase))
-                        .then(function (res) {
-                            if (res.data.code == 200) {
-                                that.xunleiHasAuth = res.data.data.has_auth || false;
-                                if (res.data.data.cookie) {
-                                    let authData = JSON.parse(res.data.data.cookie);
-                                    that.xunleiForm.cookie = res.data.data.cookie;
-                                    that.xunleiForm.xunlei_file = authData.xunlei_file || '';
-                                    that.xunleiForm.xunlei_file_time = authData.xunlei_file_time || '';
-                                }
-                            }
-                        });
-                },
-                xunleiCheckAuth() {
-                    let that = this;
-                    that.$message.info('正在验证凭证...');
-                    axios.post('/admin/source/xunleiCheckAuth', Object.assign({}, PostBase))
-                        .then(function (res) {
-                            if (res.data.code == 200) {
-                                that.xunleiHasAuth = true;
-                                that.$message.success('凭证有效，登录状态正常');
-                            } else {
-                                that.xunleiHasAuth = false;
-                                that.$message.error(res.data.message || '凭证无效');
-                            }
-                        })
-                        .catch(function (err) {
-                            that.$message.error('网络错误');
-                        });
-                },
-                xunleiClearAuth() {
-                    let that = this;
-                    that.$confirm('确定要清空迅雷云盘凭证吗？清空后需要重新扫码登录。', '清空确认', {
-                        confirmButtonText: '确定清空',
-                        cancelButtonText: '取消',
-                        type: 'warning'
-                    }).then(function () {
-                        axios.post('/admin/source/xunleiClearAuth', Object.assign({}, PostBase))
-                            .then(function (res) {
-                                if (res.data.code == 200) {
-                                    that.xunleiHasAuth = false;
-                                    that.xunleiForm.cookie = '';
-                                    that.$message.success('凭证已清空，请重新扫码登录');
-                                } else {
-                                    that.$message.error(res.data.message || '清空失败');
-                                }
-                            })
-                            .catch(function (err) {
-                                that.$message.error('网络错误');
-                            });
-                    }).catch(function () {});
-                },
-                xunleiSaveConfig() {
-                    let that = this;
-                    let saveData = {};
-                    try {
-                        if (that.xunleiForm.cookie) {
-                            saveData = JSON.parse(that.xunleiForm.cookie);
-                        }
-                    } catch (e) {
-                        that.$message.error('OAuth凭证JSON格式错误');
-                        return;
-                    }
-                    saveData.xunlei_file = that.xunleiForm.xunlei_file || '';
-                    saveData.xunlei_file_time = that.xunleiForm.xunlei_file_time || '';
-
-                    axios.post('/admin/source/xunleiSaveAuth', Object.assign({ cookie: JSON.stringify(saveData) }, PostBase))
-                        .then(function (res) {
-                            if (res.data.code == 200) {
-                                // 同步更新 xunlei_file / xunlei_file_time 到数据库配置
-                                axios.post('/admin/conf/updateBaseConfig', Object.assign({}, PostBase, {
-                                    xunlei_file: that.xunleiForm.xunlei_file || '',
-                                    xunlei_file_time: that.xunleiForm.xunlei_file_time || ''
-                                })).then(function () {});
-
-                                that.$message.success('保存成功');
-                            } else {
-                                that.$message.error(res.data.message || '保存失败');
-                            }
-                        })
-                        .catch(function (err) {
-                            that.$message.error('网络错误');
-                        });
-                },
-                onSubmit() {
-                    let that = this
-                    axios.post('/admin/conf/updateBaseConfig', Object.assign({}, PostBase, that.form))
-                        .then(function (response) {
-                            if (response.data.code == 200) {
-                                that.$message({
-                                    message: response.data.message,
-                                    type: 'success'
+                            that.loading = false;
+                            if (res.data.code == CODE_SUCCESS) {
+                                var data = res.data.data || {};
+                                that.service = data.pan_service || null;
+                                that.baseUrlForm.baseUrl = (that.service && that.service.base_url) || '';
+                                that.baseUrlForm.token = (that.service && that.service.token) || '';
+                                var list = Array.isArray(data.accounts) ? data.accounts : [];
+                                that.accounts = list.map(function (r) {
+                                    return Object.assign({}, r, {
+                                        account: r.account || (r.drive_type && r.userId ? r.drive_type + '_' + r.userId : '')
+                                    });
                                 });
+                                that.accountsError = data.accounts_error || '';
+                                that.dirs = data.dirs || {};
                             } else {
-                                that.$message.error(response.data.message);
+                                that.$message.error(res.data.message || '配置加载失败');
                             }
                         })
-                        .catch(function (error) {
+                        .catch(function () {
+                            that.loading = false;
                             that.$message.error('服务器内部错误');
-                            console.log(error);
+                        });
+                },
+                driveInfo(account) {
+                    var type = String(account || '').split('_')[0];
+                    var map = {
+                        quark: { name: '夸克网盘', color: '#5B6CFF' },
+                        aliyun: { name: '阿里云盘', color: '#FF6A00' },
+                        baidu: { name: '百度网盘', color: '#2932E1' },
+                        uc: { name: 'UC网盘', color: '#FF5000' },
+                        xunlei: { name: '迅雷云盘', color: '#1B93E6' },
+                        '123pan': { name: '123云盘', color: '#0EB5CF' },
+                        '115': { name: '115网盘', color: '#3388FF' },
+                        tianyi: { name: '天翼云盘', color: '#E60012' },
+                        yidong: { name: '移动云盘', color: '#0085D0' },
+                        guangya: { name: '光鸭网盘', color: '#F5A623' }
+                    };
+                    return map[type] || { name: type || '未知', color: '#909399' };
+                },
+
+                // ===== 服务连接配置保存（地址+令牌均必填） =====
+                saveBaseUrl() {
+                    var that = this;
+                    var baseUrl = that.baseUrlForm.baseUrl.trim();
+                    var token = that.baseUrlForm.token.trim();
+                    if (!baseUrl) {
+                        that.$message.warning('服务地址不能为空');
+                        return;
+                    }
+                    if (!/^https?:\/\//i.test(baseUrl)) {
+                        that.$message.warning('服务地址需为 http(s):// 开头的完整地址');
+                        return;
+                    }
+                    if (!token) {
+                        that.$message.warning('服务令牌不能为空，请在 pan-backend 管理页签发后粘贴');
+                        return;
+                    }
+                    that.baseUrlSaving = true;
+                    axios.post('/admin/pan_manage/saveBaseUrl', Object.assign({}, PostBase, {
+                        baseUrl: baseUrl,
+                        token: token
+                    }))
+                        .then(function (res) {
+                            that.baseUrlSaving = false;
+                            if (res.data.code == CODE_SUCCESS) {
+                                var connected = res.data.data && res.data.data.connected;
+                                if (connected) {
+                                    that.$message.success(res.data.message || '服务地址已保存，连接正常');
+                                } else {
+                                    that.$message.warning(res.data.message || '服务地址已保存，但连接失败');
+                                }
+                                that.loadConfig();
+                            } else {
+                                that.$message.error(res.data.message || '保存失败');
+                            }
+                        })
+                        .catch(function () {
+                            that.baseUrlSaving = false;
+                            that.$message.error('服务器内部错误');
                         });
                 },
 
-                getFile(type) {
-                    let that = this
-                    axios.post('/admin/source/getFiles', Object.assign({
-                        type
-                    }, PostBase))
+                copyToken() {
+                    var that = this;
+                    var text = that.baseUrlForm.token || '';
+                    if (!text) return;
+                    var done = function () { that.$message.success('令牌已复制'); };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(done).catch(function () { that.fallbackCopy(text, done); });
+                    } else {
+                        that.fallbackCopy(text, done);
+                    }
+                },
+                fallbackCopy(text, done) {
+                    var ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try { document.execCommand('copy'); done(); } catch (e) { }
+                    document.body.removeChild(ta);
+                },
+
+                // ===== 目录设置 =====
+                openDirs(row) {
+                    var d = this.dirs[row.account] || {};
+                    this.dirForm = { account: row.account, saveDir: d.save || '', tempDir: d.temp || '' };
+                    this.dirSaveProps = this.buildDirProps();
+                    this.dirTempProps = this.buildDirProps();
+                    this.dirDialog = true;
+                },
+                // 目录 cascader 懒加载：根层补一个「根目录」虚拟项，其余按接口目录展开
+                buildDirProps() {
+                    var that = this;
+                    return {
+                        lazy: true,
+                        emitPath: false,
+                        checkStrictly: true,
+                        lazyLoad(node, resolve) {
+                            var account = that.dirForm.account;
+                            var path = node.level === 0 ? ('/' + account + '/') : node.data.value;
+                            axios.post('/admin/pan_manage/ls', Object.assign({}, PostBase, { account: account, path: path }))
+                                .then(function (res) {
+                                    if (res.data.code == CODE_SUCCESS) {
+                                        var list = (res.data.data && res.data.data.list) || [];
+                                        var options = list.filter(function (f) { return f.dir; }).map(function (f) {
+                                            return { value: f.file_path, label: f.file_name, leaf: false };
+                                        });
+                                        if (node.level === 0) {
+                                            options.unshift({ value: '/' + account, label: '（根目录）', leaf: true });
+                                        }
+                                        resolve(options);
+                                    } else {
+                                        resolve([]);
+                                        that.$message.error(res.data.message || '目录加载失败');
+                                    }
+                                })
+                                .catch(function () { resolve([]); });
+                        }
+                    };
+                },
+                saveDirs() {
+                    var that = this;
+                    that.dirSaving = true;
+                    axios.post('/admin/pan_manage/saveDirs', Object.assign({}, PostBase, that.dirForm))
                         .then(function (res) {
-                            if (res.data.code == 200) {
-                                that.$message.success("已登录，cookie可用");
+                            that.dirSaving = false;
+                            if (res.data.code == CODE_SUCCESS) {
+                                that.$message.success(res.data.message || '保存成功');
+                                that.dirDialog = false;
+                                that.loadConfig();
                             } else {
-                                that.$message.error(res.data.message);
+                                that.$message.error(res.data.message || '保存失败');
                             }
                         })
-                        .catch(function (error) {
+                        .catch(function () {
+                            that.dirSaving = false;
                             that.$message.error('服务器内部错误');
-                            console.log(error);
                         });
                 },
+                removeAccount(row) {
+                    var that = this;
+                    that.$confirm('确定删除账户「' + that.driveInfo(row.account).name + ' ' + row.account + '」吗？删除后该网盘需要重新扫码绑定。', '删除确认', {
+                        confirmButtonText: '确定删除',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(function () {
+                        axios.post('/admin/pan_manage/accountDelete', Object.assign({}, PostBase, { account: row.account }))
+                            .then(function (res) {
+                                if (res.data.code == CODE_SUCCESS) {
+                                    that.$message.success(res.data.message || '已删除');
+                                    that.loadConfig();
+                                } else {
+                                    that.$message.error(res.data.message || '删除失败');
+                                }
+                            })
+                            .catch(function () { that.$message.error('服务器内部错误'); });
+                    }).catch(function () { });
+                },
+
+                // ===== 添加账户（扫码 / TV / Cookie / 短信 统一登录状态机） =====
+                openAdd() {
+                    this.resetAddState();
+                    this.addDialog = true;
+                    this.loadDrivers();
+                },
+                onAddClosed() {
+                    this.qrStop();
+                    this.resetAddState();
+                },
+                resetAddState() {
+                    this.drivers = [];
+                    this.selectedDrive = '';
+                    this.loginMethod = '';
+                    this.loginMsg = '';
+                    this.loginMsgOk = false;
+                    this.loginSubmitting = false;
+                    this.qr = { imgSrc: '', status: '', meta: {}, polling: false, imgError: false, success: false };
+                    this.cookie = '';
+                    this.sms = { userId: '', code: '', sending: false };
+                },
+                loadDrivers() {
+                    var that = this;
+                    axios.post('/admin/pan_manage/getDrivers', Object.assign({}, PostBase))
+                        .then(function (res) {
+                            if (res.data.code == CODE_SUCCESS) {
+                                that.drivers = Array.isArray(res.data.data) ? res.data.data : [];
+                            }
+                        })
+                        .catch(function (e) { console.log(e); });
+                },
+                selectDrive(d) {
+                    if (this.selectedDrive === d.driveType) return;
+                    this.qrStop();
+                    this.selectedDrive = d.driveType;
+                    this.loginMethod = '';
+                    this.loginMsg = '';
+                    this.qr.imgSrc = '';
+                    this.qr.success = false;
+                },
+                onLoginMethodChange() {
+                    this.loginMsg = '';
+                    if (this.loginMethod === 'qrcode' || this.loginMethod === 'tv_qrcode') {
+                        this.qrcodeStart();
+                    }
+                },
+                // 统一登录请求封装：成功返回 session 数据，失败抛错
+                apiLogin(payload) {
+                    return axios.post('/admin/pan_manage/accountLogin', Object.assign({}, PostBase, payload))
+                        .then(function (res) {
+                            if (res.data.code == CODE_SUCCESS) {
+                                return res.data.data;
+                            }
+                            throw new Error(res.data.message || '操作失败');
+                        });
+                },
+                currentDriveName() {
+                    var that = this;
+                    var d = (this.drivers || []).find(function (x) { return x.driveType === that.selectedDrive; });
+                    return d ? (d.driveName || d.driveType) : (this.selectedDrive || '');
+                },
+                qrcodeStart() {
+                    var that = this;
+                    var action = that.loginMethod === 'tv_qrcode' ? 'tv_start' : 'qrcode_start';
+                    that.qrStop();
+                    that.qr.success = false;
+                    that.qr.imgError = false;
+                    that.qr.status = '正在生成二维码...';
+                    that.apiLogin({ driveType: that.selectedDrive, action: action, config: '{}' })
+                        .then(function (session) {
+                            if (!session || session.status === 'failed') {
+                                that.qr.status = (session && session.message) || '生成二维码失败';
+                                return;
+                            }
+                            that.qr.meta = session.sessionMeta || {};
+                            if (session.qrcodeUrl) {
+                                that.qr.imgSrc = session.qrcodeUrl;
+                                that.qr.status = '等待扫码...';
+                                that.qrPollLoop();
+                            } else {
+                                that.qr.status = '未返回二维码';
+                            }
+                        })
+                        .catch(function (e) {
+                            that.qr.status = '生成二维码失败：' + e.message;
+                        });
+                },
+                qrPollLoop() {
+                    var that = this;
+                    that.qr.polling = true;
+                    var loop = function () {
+                        if (!that.qr.polling) return;
+                        var action = that.loginMethod === 'tv_qrcode' ? 'tv_poll' : 'qrcode_poll';
+                        that.apiLogin({
+                            driveType: that.selectedDrive,
+                            action: action,
+                            sessionMeta: JSON.stringify(that.qr.meta || {})
+                        })
+                            .then(function (session) {
+                                if (!that.qr.polling) return;
+                                if (session && session.sessionMeta) that.qr.meta = session.sessionMeta;
+                                if (session && session.status === 'confirmed') {
+                                    that.qr.status = '登录成功！';
+                                    that.qr.success = true;
+                                    that.qr.polling = false;
+                                    that.loginMsg = '「' + that.currentDriveName() + '」账户添加成功';
+                                    that.loginMsgOk = true;
+                                    that.loadConfig();
+                                    return;
+                                }
+                                if (session && (session.status === 'expired' || session.status === 'failed')) {
+                                    that.qr.status = session.message || (session.status === 'expired' ? '二维码已过期，请重新生成' : '登录失败');
+                                    that.qr.polling = false;
+                                    return;
+                                }
+                                that.qr.status = (session && session.status === 'scanned') ? '已扫码，请在手机上确认...' : '等待扫码...';
+                                var intervalSec = Number((that.qr.meta || {}).interval) || 2;
+                                setTimeout(loop, Math.max(2000, intervalSec * 1000));
+                            })
+                            .catch(function (e) {
+                                if (!that.qr.polling) return;
+                                // 单次轮询超时/异常不终止登录流程（部分网盘为长轮询，偶发超时属正常），稍后重试
+                                that.qr.status = '轮询重试中...';
+                                setTimeout(loop, 3000);
+                            });
+                    };
+                    loop();
+                },
+                qrStop() {
+                    this.qr.polling = false;
+                },
+                qrImgError() {
+                    this.qr.imgError = true;
+                },
+                cookieSubmit() {
+                    var that = this;
+                    if (!that.cookie.trim()) { that.$message.warning('请粘贴 Cookie'); return; }
+                    that.loginSubmitting = true;
+                    that.apiLogin({ driveType: that.selectedDrive, action: 'cookie', cookie: that.cookie.trim() })
+                        .then(function () {
+                            that.loginSubmitting = false;
+                            that.loginMsg = '「' + that.currentDriveName() + '」账户添加成功';
+                            that.loginMsgOk = true;
+                            that.cookie = '';
+                            that.loadConfig();
+                        })
+                        .catch(function (e) {
+                            that.loginSubmitting = false;
+                            that.loginMsg = '登录失败：' + e.message;
+                            that.loginMsgOk = false;
+                        });
+                },
+                smsSend() {
+                    var that = this;
+                    if (!that.sms.userId.trim()) { that.$message.warning('请输入用户ID'); return; }
+                    that.sms.sending = true;
+                    that.apiLogin({ driveType: that.selectedDrive, action: 'sms_send', userId: that.sms.userId.trim() })
+                        .then(function () {
+                            that.sms.sending = false;
+                            that.$message.success('验证码已发送，请查收短信');
+                        })
+                        .catch(function (e) {
+                            that.sms.sending = false;
+                            that.$message.error('发送验证码失败：' + e.message);
+                        });
+                },
+                smsSubmit() {
+                    var that = this;
+                    if (!that.sms.code.trim()) { that.$message.warning('请输入验证码'); return; }
+                    that.loginSubmitting = true;
+                    that.apiLogin({ driveType: that.selectedDrive, action: 'sms_submit', userId: that.sms.userId.trim(), smsCode: that.sms.code.trim() })
+                        .then(function () {
+                            that.loginSubmitting = false;
+                            that.loginMsg = '「' + that.currentDriveName() + '」账户添加成功';
+                            that.loginMsgOk = true;
+                            that.sms.code = '';
+                            that.loadConfig();
+                        })
+                        .catch(function (e) {
+                            that.loginSubmitting = false;
+                            that.loginMsg = '登录失败：' + e.message;
+                            that.loginMsgOk = false;
+                        });
+                }
             }
         })
     </script>

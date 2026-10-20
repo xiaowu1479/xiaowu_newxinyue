@@ -4,26 +4,14 @@
     <meta charset="UTF-8">
     <script>
         (function() {
-            var defaultTheme = '{$config.simple_default_theme}' || 'dark';
-            if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
-            var savedTheme = localStorage.getItem('app-theme') || defaultTheme;
-            if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
+            var savedTheme = localStorage.getItem('app-theme') || 'dark';
+            if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = 'dark';
             document.documentElement.setAttribute('data-theme', savedTheme);
             document.documentElement.setAttribute('data-page-loading', '');
         })();
-        // 资源有效性检测开关（后台「搜索设置 > 检测资源」控制）
-        window.__linkCheckEnabled = '{$config.is_quan_zc}' === '1';
-        if (!window.__linkCheckEnabled) {
-            document.documentElement.classList.add('link-check-disabled');
-        }
     </script>
     <style>
         [v-cloak] {
-            display: none !important;
-        }
-        /* 检测关闭时隐藏"检测中"标识 */
-        .link-check-disabled .link-check-status,
-        .link-check-disabled .link-check-status-vue {
             display: none !important;
         }
         el-dialog,
@@ -57,7 +45,7 @@
     <meta name="description" content="{$seo_description}" />
     <meta name="referrer" content="no-referrer">
     <link rel="stylesheet" href="__STATIC__/simple/common/static/css/element-plus.css">
-    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/base.css">
+    <link rel="stylesheet" href="__STATIC__/simple/common/static/css/base.css?v=202609213">
     <link rel="stylesheet" href="__STATIC__/simple/common/static/css/layout.css">
     <link rel="stylesheet" href="__STATIC__/simple/common/static/css/app.css">
     <link rel="stylesheet" href="__STATIC__/simple/common/static/css/m.css">

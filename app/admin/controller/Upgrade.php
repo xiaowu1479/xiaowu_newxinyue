@@ -194,18 +194,7 @@ class Upgrade extends QfShop
     }
 
     /**
-     * 升级配置项的元信息(配置项不存在时自动创建用)
-     */
-    private const CONF_META = [
-        'upgrade_source'        => ['更新源类型', 'server=主服务器,github=GitHub仓库'],
-        'upgrade_server'        => ['更新源地址', '主服务器地址,如 https://update.example.com(不带末尾斜杠)'],
-        'upgrade_secret'        => ['升级通信密钥', '主从服务器需保持一致,用于接口签名校验'],
-        'upgrade_github_repo'   => ['GitHub 仓库', '格式: 用户名/仓库名,如 yourname/xinyue(需为公开仓库)'],
-        'upgrade_github_branch' => ['GitHub 分支', '仓库分支名,默认 main'],
-    ];
-
-    /**
-     * 获取升级配置(更新源类型、主服务器地址、通信密钥、GitHub 仓库、分支)
+     * 获取升级配置(更新源地址、通信密钥)
      */
     public function getConfig()
     {
@@ -213,23 +202,16 @@ class Upgrade extends QfShop
         if ($error) {
             return $error;
         }
-        $saved = [];
-        $rows = $this->confModel->where('conf_key', 'in', array_keys(self::CONF_META))->select();
-        foreach ($rows as $row) {
-            $saved[$row['conf_key']] = (string) $row['conf_value'];
-        }
-        $branch = $saved['upgrade_github_branch'] ?? '';
+        $server = $this->confModel->where('conf_key', 'upgrade_server')->value('conf_value');
+        $secret = $this->confModel->where('conf_key', 'upgrade_secret')->value('conf_value');
         return jok('获取成功', [
-            'upgrade_source'        => $saved['upgrade_source'] ?? 'github',
-            'upgrade_server'        => $saved['upgrade_server'] ?? '',
-            'upgrade_secret'        => $saved['upgrade_secret'] ?? '',
-            'upgrade_github_repo'   => $saved['upgrade_github_repo'] ?? '',
-            'upgrade_github_branch' => $branch === '' ? 'main' : $branch,
+            'upgrade_server' => $server ?? '',
+            'upgrade_secret' => $secret ?? '',
         ]);
     }
 
     /**
-     * 保存升级配置(配置项不存在时自动创建)
+     * 保存升级配置
      */
     public function saveConfig()
     {
@@ -237,86 +219,10 @@ class Upgrade extends QfShop
         if ($error) {
             return $error;
         }
-        $source = (string) input('upgrade_source', 'github');
-        if (!in_array($source, ['server', 'github'], true)) {
-            $source = 'server';
-        }
-        // 允许直接粘贴完整仓库地址,统一规范成 用户名/仓库名
-        $repo = trim((string) input('upgrade_github_repo', ''));
-        $repo = (string) preg_replace('#^https?://(www\.)?github\.com/#i', '', $repo);
-        $repo = (string) preg_replace('#\.git$#i', '', $repo);
-        $repo = trim($repo, " \t\n\r\0\x0B/");
-
-        $branch = trim((string) input('upgrade_github_branch', ''), " \t\n\r\0\x0B/");
-
-        $values = [
-            'upgrade_source'        => $source,
-            'upgrade_server'        => trim((string) input('upgrade_server', '')),
-            'upgrade_secret'        => trim((string) input('upgrade_secret', '')),
-            'upgrade_github_repo'   => $repo,
-            'upgrade_github_branch' => $branch === '' ? 'main' : $branch,
-        ];
-
-        $now = time();
-        foreach ($values as $key => $val) {
-            if ($this->confModel->where('conf_key', $key)->find()) {
-                $this->confModel->where('conf_key', $key)->update(['conf_value' => $val]);
-                continue;
-            }
-            $meta = self::CONF_META[$key] ?? [$key, ''];
-            $this->confModel->insert([
-                'conf_key'        => $key,
-                'conf_value'      => $val,
-                'conf_title'      => $meta[0],
-                'conf_desc'       => $meta[1],
-                'conf_type'       => 5,
-                'conf_status'     => 1,
-                'conf_sort'       => 0,
-                'conf_system'     => 1,
-                'conf_createtime' => $now,
-                'conf_updatetime' => 0,
-            ]);
-        }
+        $server = input('upgrade_server', '');
+        $secret = input('upgrade_secret', '');
+        $this->confModel->where('conf_key', 'upgrade_server')->update(['conf_value' => $server]);
+        $this->confModel->where('conf_key', 'upgrade_secret')->update(['conf_value' => $secret]);
         return jok('配置保存成功');
-    }
-
-    /**
-     * 手动执行本地 upgrade.sql 数据库迁移
-     * 适用于直接拷贝文件到其他服务器后，手动执行数据库更新
-     */
-    public function manualSql()
-    {
-        $error = $this->access();
-        if ($error) {
-            return $error;
-        }
-        @set_time_limit(0);
-        $upgrade = new UpgradeService();
-        $localSqlVersion = $upgrade->getLocalSqlVersion();
-        $result = $upgrade->runLocalSqlUpdate();
-
-        // 记录日志
-        try {
-            $logModel = new UpgradeLogModel();
-            $logModel->insert([
-                'log_type'         => $result['code'] == 200 ? 'upgrade' : 'upgrade_fail',
-                'log_from_version' => $localSqlVersion,
-                'log_to_version'   => '手动SQL更新',
-                'log_update_count' => 0,
-                'log_delete_count' => 0,
-                'log_backup_name'  => '',
-                'log_result'       => $result['code'] == 200 ? '成功' : '失败',
-                'log_message'      => $result['data']['sql_result'] ?? $result['message'],
-                'log_sql_result'   => $result['data']['sql_result'] ?? '',
-                'log_admin'        => $this->admin['admin_account'] ?? '',
-                'log_createtime'   => time(),
-            ]);
-        } catch (\Throwable $e) {
-        }
-
-        if ($result['code'] != 200) {
-            return jerr($result['message'] . '（' . ($result['data']['sql_result'] ?? '') . '）');
-        }
-        return jok($result['message'], $result['data'] ?? null);
     }
 }
