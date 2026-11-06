@@ -5,6 +5,7 @@
 - 适配：`app/admin|api|index|qfadmin/QfShop.php`、`public/index.php`、`app/middleware.php` 支持 PHP 8
 - 更新：安装数据 `public/install/data.sql`、后台搜索配置模板
 - 修复：更新源默认值改为 GitHub，配置缺失时不再回退到已停止维护的主服务器
+- 修复：安装程序在 PHP 8 下访问未定义参数产生 Warning（`install/index.php`、`install/main.php`、`install/sae.php`）
 
 ## 20261001
 

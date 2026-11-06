@@ -101,8 +101,8 @@ switch ($step) {
 			empty($_POST['dbuser'])?alert(0,'数据库用户名不能为空！','dbuser'):'';
 			empty($_POST['dbname'])?alert(0,'数据库名不能为空！','dbname'):'';
 			empty($_POST['dbport'])?alert(0,'数据库端口不能为空！','dbport'):'';
-			$dbHost = $_POST['dbhost'] . ':' . $_POST['dbport'];
-			$mysqli = new mysqli($dbHost,  $_POST['dbuser'], $_POST['dbpw']);
+			$dbHost = ($_POST['dbhost'] ?? '') . ':' . ($_POST['dbport'] ?? '');
+			$mysqli = new mysqli($dbHost, $_POST['dbuser'] ?? '', $_POST['dbpw'] ?? '');
 			if(!$mysqli->server_info)  {
 				alert(0,'数据库链接失败！','dbpw');
 			}else{
@@ -149,31 +149,31 @@ switch ($step) {
 			}
 		}
 		verify(4);
-		if (intval($_GET['install'])) {
+		if (intval($_GET['install'] ?? 0)) {
 			dataVerify();
 			//关闭特殊字符提交处理到数据库
 			//设置时区
 			date_default_timezone_set('PRC');
 			//当前进行的数据库操作
-			$n = intval($_GET['n']);
+			$n = intval($_GET['n'] ?? 0);
 			$arr = array();
 			//数据库服务器地址
-			$dbHost = trim($_POST['dbhost']);
+			$dbHost = trim($_POST['dbhost'] ?? '');
 			//数据库端口
-			$dbPort = trim($_POST['dbport']);
+			$dbPort = trim($_POST['dbport'] ?? '');
 			//数据库名
-			$dbName = trim($_POST['dbname']);
+			$dbName = trim($_POST['dbname'] ?? '');
 			$dbHost = empty($dbPort) || $dbPort == 3306 ? $dbHost : $dbHost . ':' . $dbPort;
 			//数据库用户名
-			$dbUser = trim($_POST['dbuser']);
+			$dbUser = trim($_POST['dbuser'] ?? '');
 			//数据库密码
-			$dbPwd = trim($_POST['dbpw']);
+			$dbPwd = trim($_POST['dbpw'] ?? '');
 			//表前缀
 			$dbPrefix = empty($_POST['dbprefix']) ? 'db_' : trim($_POST['dbprefix']);
 			//链接数据库
 			$mysqli = new mysqli($dbHost, $dbUser, $dbPwd);
 			//导入政采商品
-			$sitegoods = trim($_POST['sitegoods']);
+			$sitegoods = trim($_POST['sitegoods'] ?? '');
 			// 获取错误信息
 			$error=$mysqli->connect_error;
 			if (!is_null($error)) {

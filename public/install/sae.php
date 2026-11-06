@@ -1,6 +1,6 @@
 <?php
 //设置storage的domain
-if($_GET['step'] == 0){
+if(($_GET['step'] ?? 0) == 0){
 	if(empty($_POST['storagedomain'])){
 		$step_html = '<li class="current"><em>0</em>Storage设置</li>';
 		include './templates/0.php';

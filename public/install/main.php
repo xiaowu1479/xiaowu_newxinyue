@@ -1,8 +1,8 @@
 <?php
-$username = trim($_POST['manager']);
-$password = trim($_POST['manager_pwd']);
+$username = trim($_POST['manager'] ?? '');
+$password = trim($_POST['manager_pwd'] ?? '');
 //网站名称
-$site_name = addslashes(trim($_POST['sitename']));
+$site_name = addslashes(trim($_POST['sitename'] ?? ''));
 
 //更新配置信息
 $mysqli->query("UPDATE `{$dbPrefix}conf` SET  `conf_value` = '$site_name' WHERE conf_key='app_name'");

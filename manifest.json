@@ -1,7 +1,7 @@
 {
-    "version": "2.0.2",
+    "version": "2.0.3",
     "sql_version": "20261001",
-    "changelog": "## 20261106\r\n\r\n- 新增：PHP 8 兼容中间件 `app/middleware/Php8Compat.php`，忽略弃用级别错误，避免导出/导入在 PHP 8 下 500\r\n- 修复：PHPExcel 在 PHP 8.0 / 8.1 / 8.2 下的兼容问题（类型判断、字符串处理、计算引擎）\r\n- 适配：`app/admin|api|index|qfadmin/QfShop.php`、`public/index.php`、`app/middleware.php` 支持 PHP 8\r\n- 更新：安装数据 `public/install/data.sql`、后台搜索配置模板\r\n- 修复：更新源默认值改为 GitHub，配置缺失时不再回退到已停止维护的主服务器\r\n\r\n## 20261001\r\n\r\n- 新增：更新源支持连接自己的 GitHub 仓库（后台「系统更新」可切换 主服务器 / GitHub 仓库）\r\n- 新增：Banner 管理（首页轮播图），后台菜单新增「Banner管理」\r\n- 新增：接口配置支持认证（认证开关 / 用户名 / 密码）\r\n- 新增：配置项「简约模板默认模式」「首页公告图片」「首页公告内容」「顶部导航显示项」\r\n- 修复：补充缺失的数据表 qf_banner、qf_install_server、qf_sync_log、qf_sync_server\r\n- 修复：qf_conf 增加 conf_key 唯一索引，避免配置项重复\r\n- 修复：qf_source.is_time 字段注释更正为「0永久 1临时 2外部资源」",
+    "changelog": "## 20261106\r\n\r\n- 新增：PHP 8 兼容中间件 `app/middleware/Php8Compat.php`，忽略弃用级别错误，避免导出/导入在 PHP 8 下 500\r\n- 修复：PHPExcel 在 PHP 8.0 / 8.1 / 8.2 下的兼容问题（类型判断、字符串处理、计算引擎）\r\n- 适配：`app/admin|api|index|qfadmin/QfShop.php`、`public/index.php`、`app/middleware.php` 支持 PHP 8\r\n- 更新：安装数据 `public/install/data.sql`、后台搜索配置模板\r\n- 修复：更新源默认值改为 GitHub，配置缺失时不再回退到已停止维护的主服务器\r\n- 修复：安装程序在 PHP 8 下访问未定义参数产生 Warning（`install/index.php`、`install/main.php`、`install/sae.php`）\r\n\r\n## 20261001\r\n\r\n- 新增：更新源支持连接自己的 GitHub 仓库（后台「系统更新」可切换 主服务器 / GitHub 仓库）\r\n- 新增：Banner 管理（首页轮播图），后台菜单新增「Banner管理」\r\n- 新增：接口配置支持认证（认证开关 / 用户名 / 密码）\r\n- 新增：配置项「简约模板默认模式」「首页公告图片」「首页公告内容」「顶部导航显示项」\r\n- 修复：补充缺失的数据表 qf_banner、qf_install_server、qf_sync_log、qf_sync_server\r\n- 修复：qf_conf 增加 conf_key 唯一索引，避免配置项重复\r\n- 修复：qf_source.is_time 字段注释更正为「0永久 1临时 2外部资源」",
     "file_count": 965,
     "files": {
         "app/AppService.php": "fd58f5054624c17ad844e9d4e683dddf",
