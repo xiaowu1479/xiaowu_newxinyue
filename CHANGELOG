@@ -4,6 +4,7 @@
 - 修复：PHPExcel 在 PHP 8.0 / 8.1 / 8.2 下的兼容问题（类型判断、字符串处理、计算引擎）
 - 适配：`app/admin|api|index|qfadmin/QfShop.php`、`public/index.php`、`app/middleware.php` 支持 PHP 8
 - 更新：安装数据 `public/install/data.sql`、后台搜索配置模板
+- 修复：更新源默认值改为 GitHub，配置缺失时不再回退到已停止维护的主服务器
 
 ## 20261001
 

@@ -140,7 +140,7 @@ class Upgrade
      */
     public function getSourceType(): string
     {
-        return $this->getConfig('upgrade_source', 'server') === 'github' ? 'github' : 'server';
+        return $this->getConfig('upgrade_source', 'github') === 'github' ? 'github' : 'server';
     }
 
     /**
