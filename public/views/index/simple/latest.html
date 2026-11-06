@@ -107,8 +107,7 @@
     <script src="__STATIC__/simple/common/static/js/axios.min.js"></script>
     <script src="__STATIC__/simple/common/static/js/qrcanvas@3.js"></script>
     <script src="__STATIC__/simple/common/static/js/app-core.js"></script>
-    <script src="__STATIC__/simple/common/static/js/search.js?v=202609282"></script>
-    <script src="__STATIC__/simple/common/static/js/novel-downloader.js?v=202609291"></script>
+    <script src="__STATIC__/simple/common/static/js/search.js?v=20260814"></script>
     <script type="text/javascript">
         const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
 
@@ -318,8 +317,10 @@
 
                 // 初始化主题
                 const initTheme = () => {
-                    let savedTheme = localStorage.getItem('app-theme') || 'dark';
-                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = 'dark';
+                    let defaultTheme = '{$config.simple_default_theme}' || 'dark';
+                    if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
+                    let savedTheme = localStorage.getItem('app-theme') || defaultTheme;
+                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
                     currentTheme.value = savedTheme;
                     document.documentElement.setAttribute('data-theme', savedTheme);
                 };
@@ -368,12 +369,8 @@
                     searchBtn, searchDialogVisible, searchDialogStage, searchSelectedPanType,
                     openSearchDialog, selectPanAndSearch, backToSelectPanType, onDialogKeywordEnter,
                     startMultiSearch, selectAllPanTypes, clearPanTypes,
-                    resultFilterPanType, availableResultTabs, setResultFilterPanType,
-                    switchPanFromResource
+                    resultFilterPanType, availableResultTabs, setResultFilterPanType
                 } = window.searchModule.createDialogState(keyword, { validateKeywordOnSearch: false, selectPanAndSearchMode: 'toggle' });
-                // navbar 通用绑定：非小说页搜索走原 searchBtn
-                const isNovelPage = false;
-                const navbarSearch = () => { searchBtn(); };
                 const content = ref('');
                 const layerVisible = ref(false);
                 const saveBtn = () => { layerVisible.value = false; };
@@ -383,7 +380,9 @@
                     document.documentElement.setAttribute('data-theme', newTheme);
                     localStorage.setItem('app-theme', newTheme);
                 };
+                const downloadWithThunder = () => {};
                 const panTypeMap = ref({});
+                const copyToClipboard = (text) => { if (navigator.clipboard) navigator.clipboard.writeText(text); };
 
                 return {
                     drawer,
@@ -404,7 +403,7 @@
                     dialogUrl,
                     dialogLoading,
                     dialogItem,
-                    keyword, searchBtn, content, layerVisible, saveBtn, toggleTheme, isNovelPage, navbarSearch,
+                    keyword, searchBtn, content, layerVisible, saveBtn, toggleTheme,
                     switchPanFromResource, downloadWithThunder,
                     is_m, pc_type, panTypeMap,
                     copyToClipboard,is_m,

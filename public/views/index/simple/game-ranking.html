@@ -77,8 +77,7 @@
     <script src="__STATIC__/simple/common/static/js/index.full.min.js"></script>
     <script src="__STATIC__/simple/common/static/js/axios.min.js"></script>
     <script src="__STATIC__/simple/common/static/js/app-core.js"></script>
-    <script src="__STATIC__/simple/common/static/js/search.js?v=202609282"></script>
-    <script src="__STATIC__/simple/common/static/js/novel-downloader.js?v=202609291"></script>
+    <script src="__STATIC__/simple/common/static/js/search.js?v=20260814"></script>
     <script type="text/javascript">
         const { createApp, ref, computed, onMounted } = Vue;
 
@@ -133,8 +132,10 @@
                 // 主题
                 const currentTheme = ref('dark');
                 const initTheme = () => {
-                    let savedTheme = localStorage.getItem('app-theme') || 'dark';
-                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = 'dark';
+                    let defaultTheme = '{$config.simple_default_theme}' || 'dark';
+                    if (defaultTheme !== 'dark' && defaultTheme !== 'light') defaultTheme = 'dark';
+                    let savedTheme = localStorage.getItem('app-theme') || defaultTheme;
+                    if (savedTheme !== 'dark' && savedTheme !== 'light') savedTheme = defaultTheme;
                     currentTheme.value = savedTheme;
                     document.documentElement.setAttribute('data-theme', savedTheme);
                 };
@@ -154,9 +155,6 @@
                     resultFilterPanType, availableResultTabs, setResultFilterPanType,
                     switchPanFromResource
                 } = window.searchModule.createDialogState(keyword, { validateKeywordOnSearch: false, selectPanAndSearchMode: 'toggle' });
-                // navbar 通用绑定：非小说页搜索走原 searchBtn
-                const isNovelPage = false;
-                const navbarSearch = () => { searchBtn(); };
                 const drawer = ref(false);
                 const qcodeVisible = ref(false);
                 const layerVisible = ref(false);
@@ -226,7 +224,7 @@
                     rankings, displayRankings, typeRankings, currentTab, currentItems, currentTitle, currentIsTypeGroup, loading,
                     switchTab, goToSearch,
                     currentTheme, toggleTheme,
-                    keyword, searchBtn, drawer, qcodeVisible, isNovelPage, navbarSearch,
+                    keyword, searchBtn, drawer, qcodeVisible,
                     layerVisible, content, saveBtn,
                     dialogUrl, dialogLoading, dialogItem,
                     switchPanFromResource, downloadWithThunder,

@@ -169,7 +169,7 @@ INSERT INTO `qf_conf` VALUES ('62', 'uc_file_time', '', 'UC临时资源目录', 
 INSERT INTO `qf_conf` VALUES ('63', 'xunlei_cookie', '', '迅雷Cookie', '', '0', '0', NULL, '4', '1', '59', '1', '1743149794', '1743149794');
 INSERT INTO `qf_conf` VALUES ('64', 'xunlei_file', '', '迅雷默认转存目录', '', '0', '0', NULL, '4', '1', '58', '1', '1743149819', '1743149819');
 INSERT INTO `qf_conf` VALUES ('65', 'xunlei_file_time', '', '迅雷临时资源目录', '', '0', '0', NULL, '4', '1', '57', '1', '1743149860', '1743149860');
-INSERT INTO `qf_conf` VALUES ('66', 'api_key', '', '接口api_key', '个别接口需要此参数方可调用', '0', '0', NULL, '1', '1', '0', '1', '1743154753', '1743154753');
+INSERT INTO `qf_conf` VALUES ('66', 'api_key', '', '接口api_key', '调用 /api/open/* 时通过请求头 X-Api-Key 传递；为空时接口拒绝调用', '0', '0', NULL, '1', '1', '0', '1', '1743154753', '1743154753');
 INSERT INTO `qf_conf` VALUES ('67', 'pc_type', '0', 'PC端访问方式', '跳转：直接通过链接访问；扫码：提示用户用手机扫码访问', '0', '2', '跳转+扫码=>0\n仅跳转=>1\n仅扫码=>2', '3', '1', '90', '1', '1744861402', '1744861423');
 INSERT INTO `qf_conf` VALUES ('68', 'is_quan_type', '0', '全网搜模式', '第三方直链: 直接展示第三方接口的资源', '0', '2', '转存分享=>0\n第三方直链=>1', '1', '1', '1', '1', '1744882575', '1744882612');
 INSERT INTO `qf_conf` VALUES ('69', 'is_quan_zc', '1', '检测资源', '开启后全网搜将会过滤失效的资源；支持夸克和阿里网盘', '0', '2', '开启=>1\n关闭=>0', '1', '1', '1', '1', '1744882765', '1744882765');
@@ -185,6 +185,7 @@ INSERT INTO `qf_conf` VALUES (78, 'nav_menu_items', 'home,ranking,top250,game,ca
 INSERT INTO `qf_conf` VALUES (79, 'upgrade_source', 'github', '更新源类型', 'server=主服务器,github=GitHub仓库', 0, 2, '主服务器=>server\nGitHub仓库=>github', 5, 1, 68, 1, 1783592482, 0);
 INSERT INTO `qf_conf` VALUES (80, 'upgrade_github_repo', 'xiaowu1479/xiaowu_newxinyue', 'GitHub 仓库', '格式: 用户名/仓库名,如 yourname/xinyue(需为公开仓库)', 0, 0, NULL, 5, 1, 67, 1, 1783592482, 0);
 INSERT INTO `qf_conf` VALUES (81, 'upgrade_github_branch', 'main', 'GitHub 分支', '仓库分支名,默认 main', 0, 0, NULL, 5, 1, 66, 1, 1783592482, 0);
+INSERT INTO `qf_conf` VALUES (98, 'open_api_enabled', '0', '启用开放接口', '关闭后 /api/open/* 直接返回 404；开启前请先设置接口api_key', 0, 2, '关闭=>0\n开启=>1', 1, 1, 1, 1, 1783592482, 0);
 
 
 

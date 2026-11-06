@@ -8,6 +8,9 @@ use app\model\Conf as ConfModel;
 
 class Conf extends QfShop
 {
+    private const FRONTEND_TEMPLATE_KEY = 'frontend_template';
+    private const NAV_MENU_ITEMS_KEY = 'nav_menu_items';
+
     public function __construct(App $app)
     {
         parent::__construct($app);
@@ -37,6 +40,54 @@ class Conf extends QfShop
         $this->model = new ConfModel();
     }
 
+    private function getFrontendTemplateDefaults(string $value = 'simple'): array
+    {
+        return [
+            'conf_key' => self::FRONTEND_TEMPLATE_KEY,
+            'conf_value' => $value,
+            'conf_title' => '前台模板',
+            'conf_desc' => '切换站点前台模板风格',
+            'conf_spec' => 2,
+            'conf_content' => "经典模板=>classic\n简约模板=>simple",
+            'conf_type' => 3,
+            'conf_status' => 1,
+            'conf_sort' => 82,
+            'conf_system' => 1,
+        ];
+    }
+
+    private function getNavMenuItemsDefaults(string $value = 'home,ranking,top250,game,category,contact'): array
+    {
+        return [
+            'conf_key' => self::NAV_MENU_ITEMS_KEY,
+            'conf_value' => $value,
+            'conf_title' => '顶部导航显示项',
+            'conf_desc' => '控制前台顶部导航和手机端抽屉菜单显示哪些按钮',
+            'conf_spec' => 3,
+            'conf_content' => "首页=>home\n夸克榜单=>ranking\nTop250=>top250\n游戏排行=>game\n最近更新=>category\n联系我们=>contact",
+            'conf_type' => 3,
+            'conf_status' => 1,
+            'conf_sort' => 81,
+            'conf_system' => 1,
+        ];
+    }
+
+    private function upsertFrontendTemplateConfig(string $value): void
+    {
+        $value = in_array($value, ['classic', 'simple'], true) ? $value : 'simple';
+        $item = $this->model->where('conf_key', self::FRONTEND_TEMPLATE_KEY)->find();
+        $data = $this->getFrontendTemplateDefaults($value);
+        $data['conf_updatetime'] = time();
+
+        if ($item) {
+            $this->model->where('conf_key', self::FRONTEND_TEMPLATE_KEY)->update($data);
+            return;
+        }
+
+        $data['conf_createtime'] = time();
+        $this->model->insert($data);
+    }
+
     /**
      * 获取列表接口基类
      *
@@ -59,6 +110,18 @@ class Conf extends QfShop
         $dataList = $this->model->getListByPage($map, $order, $this->selectList);
         return jok('数据获取成功', $dataList);
     }
+    /**
+     * 生成开放接口密钥
+     */
+    public function generateApiKey()
+    {
+        $error = $this->access();
+        if ($error) {
+            return $error;
+        }
+        return jok('生成成功', ['api_key' => bin2hex(random_bytes(32))]);
+    }
+
     /**
      * 按类型获取配置
      */
@@ -117,11 +180,54 @@ class Conf extends QfShop
         if ($error) {
             return $error;
         }
-        $datalist = $this->model->where('conf_status', 1)->order("conf_sort desc ".$this->pk . " asc")->select()->toArray();
+        $hiddenKeys = [
+            'app_demand',
+            'ranking_num',
+            'ranking_m_num',
+            'home_bg',
+            'home_background',
+            'home_color',
+            'home_theme',
+            'other_background',
+            'home_css',
+            'home_new_img',
+        ];
+        // 简约模板下隐藏最新列表、榜单名称、热播榜单
+        $currentTemplate = (string) config('qfshop.frontend_template', 'simple');
+        if ($currentTemplate === 'simple') {
+            $hiddenKeys = array_merge($hiddenKeys, ['home_new', 'rank_name', 'ranking_type']);
+        }
+        $datalist = $this->model->where('conf_status', 1)
+            ->whereNotIn('conf_key', $hiddenKeys)
+            ->order("conf_sort desc ".$this->pk . " asc")->select()->toArray();
+        $hasFrontendTemplate = false;
+        $hasNavMenuItems = false;
         foreach ($datalist as $key => $value) {
-            if($value['conf_content']){
-                $datalist[$key]['conf_content'] = explode("\n",$value['conf_content']);
+            if ($value['conf_key'] === self::FRONTEND_TEMPLATE_KEY) {
+                $hasFrontendTemplate = true;
             }
+            if ($value['conf_key'] === self::NAV_MENU_ITEMS_KEY) {
+                $hasNavMenuItems = true;
+            }
+            if($value['conf_content']){
+                $contentArr = explode("\n", $value['conf_content']);
+                if ($value['conf_key'] === self::NAV_MENU_ITEMS_KEY) {
+                    $contentArr = array_values(array_filter($contentArr, function($item) {
+                        return strpos($item, '=>demand') === false;
+                    }));
+                }
+                $datalist[$key]['conf_content'] = $contentArr;
+            }
+        }
+        if (!$hasFrontendTemplate) {
+            $frontendTemplate = $this->getFrontendTemplateDefaults((string) config('qfshop.frontend_template', 'simple'));
+            $frontendTemplate['conf_content'] = explode("\n", $frontendTemplate['conf_content']);
+            $datalist[] = $frontendTemplate;
+        }
+        if (!$hasNavMenuItems) {
+            $navMenuItems = $this->getNavMenuItemsDefaults((string) config('qfshop.nav_menu_items', 'home,ranking,top250,game,category,contact'));
+            $navMenuItems['conf_content'] = explode("\n", $navMenuItems['conf_content']);
+            $datalist[] = $navMenuItems;
         }
         return jok('', $datalist);
     }
@@ -137,6 +243,16 @@ class Conf extends QfShop
             return $error;
         }
         foreach (input("post.") as $k => $v) {
+            if ($k === self::FRONTEND_TEMPLATE_KEY) {
+                $this->upsertFrontendTemplateConfig((string) $v);
+                continue;
+            }
+            if ($k === self::NAV_MENU_ITEMS_KEY && empty($this->model->where('conf_key', self::NAV_MENU_ITEMS_KEY)->find())) {
+                $data = $this->getNavMenuItemsDefaults(is_array($v) ? implode(",", $v) : (string) $v);
+                $data['conf_createtime'] = time();
+                $this->model->insert($data);
+                continue;
+            }
             $map["conf_key"] = $k;
             $item = $this->model->where($map)->find();
             if (empty($item)) {
