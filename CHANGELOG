@@ -1,3 +1,10 @@
+## 20261106
+
+- 新增：PHP 8 兼容中间件 `app/middleware/Php8Compat.php`，忽略弃用级别错误，避免导出/导入在 PHP 8 下 500
+- 修复：PHPExcel 在 PHP 8.0 / 8.1 / 8.2 下的兼容问题（类型判断、字符串处理、计算引擎）
+- 适配：`app/admin|api|index|qfadmin/QfShop.php`、`public/index.php`、`app/middleware.php` 支持 PHP 8
+- 更新：安装数据 `public/install/data.sql`、后台搜索配置模板
+
 ## 20261001
 
 - 新增：更新源支持连接自己的 GitHub 仓库（后台「系统更新」可切换 主服务器 / GitHub 仓库）

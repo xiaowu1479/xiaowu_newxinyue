@@ -17,6 +17,7 @@ use app\model\Conf as ConfModel;
 /**
  * 控制器基础类
  */
+#[\AllowDynamicProperties]
 abstract class QfShop
 {
     /**

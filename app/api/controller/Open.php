@@ -14,8 +14,25 @@ class Open extends QfShop
      */
     public function transfer()
     {
-        if(Config('qfshop.api_key') != input('api_key')){
-            return jerr('api_key错误');
+        // 开放接口开关：未开启时直接 404，避免暴露接口
+        if ((string) Config('qfshop.open_api_enabled') !== '1') {
+            return json(['code' => 404, 'message' => '接口未开放'], 404);
+        }
+
+        // 密钥为空时拒绝，避免“空配置 = 不校验”
+        $apiKey = (string) Config('qfshop.api_key');
+        if ($apiKey === '') {
+            return json(['code' => 503, 'message' => '接口未配置密钥'], 503);
+        }
+
+        // 优先从请求头读取，兼容旧的 api_key 参数
+        $givenKey = (string) request()->header('x-api-key', '');
+        if ($givenKey === '') {
+            $givenKey = (string) input('api_key', '');
+        }
+
+        if ($givenKey === '' || !hash_equals($apiKey, $givenKey)) {
+            return json(['code' => 401, 'message' => 'api_key错误'], 401);
         }
         $urlData = [
             'expired_type' => input('expired_type')??1,  // 1正式资源 2临时资源

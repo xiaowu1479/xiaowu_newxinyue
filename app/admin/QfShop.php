@@ -17,6 +17,7 @@ use app\model\Conf as ConfModel;
 /**
  * 控制器基础类
  */
+#[\AllowDynamicProperties]
 abstract class QfShop
 {
     protected $model = null;
@@ -619,7 +620,7 @@ abstract class QfShop
      *
      * @return string 下载文件名
      */
-    protected function exportExcelData($data)
+    protected function exportExcelData($data = null)
     {
         $datalist = $data ? $data->toArray() : [];
         $excelField = $this->getExcelFields();

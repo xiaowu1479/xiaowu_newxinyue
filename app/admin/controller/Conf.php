@@ -111,6 +111,18 @@ class Conf extends QfShop
         return jok('数据获取成功', $dataList);
     }
     /**
+     * 生成开放接口密钥
+     */
+    public function generateApiKey()
+    {
+        $error = $this->access();
+        if ($error) {
+            return $error;
+        }
+        return jok('生成成功', ['api_key' => bin2hex(random_bytes(32))]);
+    }
+
+    /**
      * 按类型获取配置
      */
     public function getConfigByType()

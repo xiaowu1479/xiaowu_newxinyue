@@ -13,6 +13,7 @@ use app\model\Token as TokenModel;
 /**
  * 控制器基础类
  */
+#[\AllowDynamicProperties]
 abstract class QfShop
 {   
     /**

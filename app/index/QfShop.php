@@ -12,6 +12,7 @@ use app\model\User as UserModel;
 /**
  * 控制器基础类
  */
+#[\AllowDynamicProperties]
 abstract class QfShop
 {
     protected const FRONTEND_TEMPLATE_MAP = [
